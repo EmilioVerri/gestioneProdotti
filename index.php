@@ -216,9 +216,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
             <button type="submit" name="login">Accedi</button>
         </form>
         
-        <div class="link-registrazione">
-            Non hai un account? <a href="pagina_controllo.php">Registrati qui</a>
-        </div>
+      
     </div>
     
     <script>
