@@ -3,14 +3,14 @@ session_start();
 
 // Verifica se l'utente è loggato
 if (!isset($_SESSION['user_id'])) {
-    header('Location: login.php');
+    header('Location: index.php');
     exit;
 }
 
 // Gestione logout
 if (isset($_GET['logout'])) {
     session_destroy();
-    header('Location: login.php');
+    header('Location: index.php');
     exit;
 }
 
@@ -608,36 +608,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['aggiungi_prodotto']))
             <div class="sidebar-title">Gestione Prodotti</div>
         </div>
         
-        <div class="sidebar-menu">
-            <a href="dashboard.php" class="menu-item">
-                <span class="menu-icon">🏠</span>
-                <span class="menu-text">Dashboard</span>
-            </a>
-            <div class="menu-item active">
-                <span class="menu-icon">⚙️</span>
-                <span class="menu-text">Controllo</span>
-            </div>
-            <div class="menu-item" onclick="alert('Funzionalità in sviluppo')">
-                <span class="menu-icon">📦</span>
-                <span class="menu-text">Prodotti</span>
-            </div>
-            <div class="menu-item" onclick="alert('Funzionalità in sviluppo')">
-                <span class="menu-icon">🏷️</span>
-                <span class="menu-text">Categorie</span>
-            </div>
-            <div class="menu-item" onclick="alert('Funzionalità in sviluppo')">
-                <span class="menu-icon">📊</span>
-                <span class="menu-text">Report</span>
-            </div>
-            <div class="menu-item" onclick="alert('Funzionalità in sviluppo')">
-                <span class="menu-icon">📈</span>
-                <span class="menu-text">Statistiche</span>
-            </div>
-            <div class="menu-item" onclick="alert('Funzionalità in sviluppo')">
-                <span class="menu-icon">👥</span>
-                <span class="menu-text">Utenti</span>
-            </div>
-        </div>
+       <?php include './widget/menu.php'; ?>
         
         <div class="sidebar-footer">
             v1.0.0 - © 2025
@@ -653,7 +624,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['aggiungi_prodotto']))
         </div>
         <div class="user-info">
             <span>Benvenuto, <strong><?php echo htmlspecialchars($username); ?></strong></span>
-            <a href="?logout=1" class="btn-logout">Logout</a>
+          <a href=".\logout.php" class="btn-logout">Logout</a>
         </div>
     </nav>
     

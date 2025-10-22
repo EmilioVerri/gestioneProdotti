@@ -3,19 +3,51 @@ session_start();
 
 // Verifica se l'utente è loggato
 if (!isset($_SESSION['user_id'])) {
-    header('Location: login.php');
+    header('Location: index.php');
     exit;
 }
 
 // Gestione logout
 if (isset($_GET['logout'])) {
     session_destroy();
-    header('Location: login.php');
+    header('Location: index.php');
     exit;
 }
 
 $username = $_SESSION['username'];
 $privilegi = $_SESSION['privilegi'];
+
+// Configurazione database
+$host = 'localhost';
+$dbname = 'gestioneprodotti';
+$db_username = 'root';
+$db_password = '';
+
+try {
+    $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $db_username, $db_password);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+} catch (PDOException $e) {
+    die('Errore di connessione: ' . $e->getMessage());
+}
+
+// Carica tutti i prodotti
+try {
+    $stmt = $pdo->query("SELECT * FROM prodotti ORDER BY quantita ASC, nome ASC");
+    $prodotti = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    $prodotti = [];
+}
+
+// Filtra prodotti in esaurimento (quantità < 5)
+$prodottiEsaurimento = array_filter($prodotti, function($p) {
+    return $p['quantita'] < 5;
+});
+
+// Calcola statistiche
+$totaleProdotti = count($prodotti);
+$totaleQuantita = array_sum(array_column($prodotti, 'quantita'));
+$prodottiCritici = count($prodottiEsaurimento);
+$prodottiOk = $totaleProdotti - $prodottiCritici;
 ?>
 <!DOCTYPE html>
 <html lang="it">
@@ -23,6 +55,7 @@ $privilegi = $_SESSION['privilegi'];
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - Gestione Prodotti</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         * {
             margin: 0;
@@ -93,6 +126,7 @@ $privilegi = $_SESSION['privilegi'];
             cursor: pointer;
             transition: all 0.3s;
             border-left: 3px solid transparent;
+            text-decoration: none;
         }
         
         .menu-item:hover {
@@ -114,17 +148,6 @@ $privilegi = $_SESSION['privilegi'];
         
         .menu-text {
             font-size: 15px;
-        }
-        
-        .sidebar-footer {
-            position: absolute;
-            bottom: 0;
-            width: 100%;
-            padding: 20px;
-            border-top: 1px solid #333;
-            color: #999;
-            font-size: 12px;
-            text-align: center;
         }
         
         /* Overlay */
@@ -184,10 +207,6 @@ $privilegi = $_SESSION['privilegi'];
             transform: scale(1.05);
         }
         
-        .menu-toggle:active {
-            transform: scale(0.95);
-        }
-        
         .navbar-logo {
             width: 45px;
             height: 45px;
@@ -231,14 +250,14 @@ $privilegi = $_SESSION['privilegi'];
         }
         
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 100px auto 40px;
             padding: 0 20px;
         }
         
         .welcome-card {
             background: white;
-            padding: 40px;
+            padding: 30px;
             border-radius: 10px;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             margin-bottom: 30px;
@@ -259,69 +278,19 @@ $privilegi = $_SESSION['privilegi'];
         .welcome-card h2 {
             color: #1a1a1a;
             margin-bottom: 10px;
-            font-size: 32px;
+            font-size: 28px;
         }
         
         .welcome-card p {
             color: #666;
-            font-size: 16px;
-        }
-        
-        .cards-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 20px;
-            margin-top: 30px;
-        }
-        
-        .card {
-            background: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            transition: all 0.3s;
-            cursor: pointer;
-            animation: slideUp 0.5s ease;
-        }
-        
-        @keyframes slideUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-        
-        .card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
-        }
-        
-        .card h3 {
-            color: #1a1a1a;
-            margin-bottom: 10px;
-            font-size: 20px;
-        }
-        
-        .card p {
-            color: #666;
             font-size: 14px;
-            line-height: 1.6;
-        }
-        
-        .card-icon {
-            font-size: 40px;
-            margin-bottom: 15px;
         }
         
         .stats {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 20px;
-            margin-top: 30px;
+            margin-bottom: 30px;
         }
         
         .stat-card {
@@ -344,7 +313,157 @@ $privilegi = $_SESSION['privilegi'];
             font-weight: bold;
         }
         
-        /* Responsive */
+        /* Dashboard Grid */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-top: 30px;
+        }
+        
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            animation: slideUp 0.5s ease;
+        }
+        
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        
+        .card-icon {
+            font-size: 32px;
+        }
+        
+        .card-header h3 {
+            color: #1a1a1a;
+            font-size: 20px;
+        }
+        
+        /* Tabella prodotti */
+        .prodotti-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .prodotti-table thead {
+            background: #f9f9f9;
+        }
+        
+        .prodotti-table th {
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 13px;
+            color: #666;
+            text-transform: uppercase;
+        }
+        
+        .prodotti-table td {
+            padding: 12px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .prodotti-table tbody tr {
+            transition: background 0.3s;
+        }
+        
+        .prodotti-table tbody tr:hover {
+            background: #f9f9f9;
+        }
+        
+        .row-critico {
+            background: #ffebee !important;
+        }
+        
+        .row-critico:hover {
+            background: #ffcdd2 !important;
+        }
+        
+        .row-ok {
+            background: #e8f5e9 !important;
+        }
+        
+        .row-ok:hover {
+            background: #c8e6c9 !important;
+        }
+        
+        .badge-qty {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-weight: 600;
+            font-size: 13px;
+        }
+        
+        .badge-critico {
+            background: #ff6b6b;
+            color: white;
+        }
+        
+        .badge-ok {
+            background: #4caf50;
+            color: white;
+        }
+        
+        .prodotto-nome {
+            font-weight: 600;
+            color: #1a1a1a;
+        }
+        
+        .no-prodotti {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+        
+        .no-prodotti-icon {
+            font-size: 60px;
+            margin-bottom: 15px;
+            opacity: 0.3;
+        }
+        
+        /* Grafico */
+        .chart-container {
+            position: relative;
+            height: 350px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .chart-full-width {
+            grid-column: 1 / -1;
+        }
+        
+        @media (max-width: 1024px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .chart-full-width {
+                grid-column: 1;
+            }
+        }
+        
         @media (max-width: 768px) {
             .navbar h1 {
                 font-size: 18px;
@@ -352,6 +471,10 @@ $privilegi = $_SESSION['privilegi'];
             
             .user-info span {
                 display: none;
+            }
+            
+            .stats {
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -367,40 +490,7 @@ $privilegi = $_SESSION['privilegi'];
             <div class="sidebar-title">Gestione Prodotti</div>
         </div>
         
-        <div class="sidebar-menu">
-            <div class="menu-item active">
-                <span class="menu-icon">🏠</span>
-                <span class="menu-text">Dashboard</span>
-            </div>
-            <div class="menu-item" onclick="alert('Funzionalità in sviluppo')">
-                <span class="menu-icon">📦</span>
-                <span class="menu-text">Prodotti</span>
-            </div>
-            <div class="menu-item" onclick="alert('Funzionalità in sviluppo')">
-                <span class="menu-icon">🏷️</span>
-                <span class="menu-text">Categorie</span>
-            </div>
-            <div class="menu-item" onclick="alert('Funzionalità in sviluppo')">
-                <span class="menu-icon">📊</span>
-                <span class="menu-text">Report</span>
-            </div>
-            <div class="menu-item" onclick="alert('Funzionalità in sviluppo')">
-                <span class="menu-icon">📈</span>
-                <span class="menu-text">Statistiche</span>
-            </div>
-           <!-- <div class="menu-item" onclick="alert('Funzionalità in sviluppo')">
-                <span class="menu-icon">👥</span>
-                <span class="menu-text">Utenti</span>
-            </div>
-            <div class="menu-item" onclick="alert('Funzionalità in sviluppo')">
-                <span class="menu-icon">⚙️</span>
-                <span class="menu-text">Impostazioni</span>
-            </div>-->
-        </div>
-        <!--
-        <div class="sidebar-footer">
-            v1.0.0 - © 2025
-        </div>-->
+        <?php include './widget/menu.php'; ?>
     </div>
     
     <!-- Navbar -->
@@ -412,54 +502,127 @@ $privilegi = $_SESSION['privilegi'];
         </div>
         <div class="user-info">
             <span>Benvenuto, <strong><?php echo htmlspecialchars($username); ?></strong></span>
-            <a href="?logout=1" class="btn-logout">Logout</a>
+            <a href=".\logout.php" class="btn-logout">Logout</a>
         </div>
     </nav>
     
     <div class="container">
         <div class="welcome-card">
             <h2>Dashboard</h2>
-            <p>Benvenuto nel sistema di gestione prodotti. Da qui puoi gestire tutti gli aspetti del tuo inventario.</p>
+            <p>Panoramica generale del magazzino e stato prodotti</p>
         </div>
         
         <div class="stats">
             <div class="stat-card">
                 <h4>Prodotti Totali</h4>
-                <div class="number" id="totaleProdotti">0</div>
+                <div class="number"><?php echo $totaleProdotti; ?></div>
             </div>
             <div class="stat-card">
-                <h4>Categorie</h4>
-                <div class="number" id="categorie">0</div>
+                <h4>Quantità Totale</h4>
+                <div class="number"><?php echo $totaleQuantita; ?></div>
             </div>
             <div class="stat-card">
-                <h4>Valore Inventario</h4>
-                <div class="number" id="valore">€ 0</div>
+                <h4>Prodotti Critici</h4>
+                <div class="number" style="color: #ff6b6b;"><?php echo $prodottiCritici; ?></div>
+            </div>
+            <div class="stat-card">
+                <h4>Prodotti OK</h4>
+                <div class="number" style="color: #4caf50;"><?php echo $prodottiOk; ?></div>
             </div>
         </div>
         
-        <div class="cards-grid">
-            <div class="card" onclick="alert('Funzionalità in sviluppo')">
-                <div class="card-icon">📦</div>
-                <h3>Gestione Prodotti</h3>
-                <p>Aggiungi, modifica ed elimina prodotti dal tuo inventario</p>
+        <div class="dashboard-grid">
+            <!-- Prodotti in esaurimento -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-icon">⚠️</span>
+                    <h3>Prodotti in Esaurimento</h3>
+                </div>
+                
+                <?php if (count($prodottiEsaurimento) > 0): ?>
+                    <div style="max-height: 400px; overflow-y: auto;">
+                        <table class="prodotti-table">
+                            <thead>
+                                <tr>
+                                    <th>Prodotto</th>
+                                    <th style="text-align: center;">Quantità</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($prodottiEsaurimento as $prod): ?>
+                                    <tr class="row-critico">
+                                        <td class="prodotto-nome"><?php echo htmlspecialchars($prod['nome']); ?></td>
+                                        <td style="text-align: center;">
+                                            <span class="badge-qty badge-critico">
+                                                <?php echo $prod['quantita']; ?> pz
+                                            </span>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                <?php else: ?>
+                    <div class="no-prodotti">
+                        <div class="no-prodotti-icon">✅</div>
+                        <p><strong>Ottimo!</strong><br>Nessun prodotto in esaurimento</p>
+                    </div>
+                <?php endif; ?>
             </div>
             
-            <div class="card" onclick="alert('Funzionalità in sviluppo')">
-                <div class="card-icon">📊</div>
-                <h3>Report</h3>
-                <p>Visualizza statistiche e report dettagliati</p>
+            <!-- Tutti i prodotti con quantità OK -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-icon">✅</span>
+                    <h3>Prodotti Disponibili</h3>
+                </div>
+                
+                <?php 
+                $prodottiOkArray = array_filter($prodotti, function($p) {
+                    return $p['quantita'] >= 5;
+                });
+                ?>
+                
+                <?php if (count($prodottiOkArray) > 0): ?>
+                    <div style="max-height: 400px; overflow-y: auto;">
+                        <table class="prodotti-table">
+                            <thead>
+                                <tr>
+                                    <th>Prodotto</th>
+                                    <th style="text-align: center;">Quantità</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($prodottiOkArray as $prod): ?>
+                                    <tr class="row-ok">
+                                        <td class="prodotto-nome"><?php echo htmlspecialchars($prod['nome']); ?></td>
+                                        <td style="text-align: center;">
+                                            <span class="badge-qty badge-ok">
+                                                <?php echo $prod['quantita']; ?> pz
+                                            </span>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                <?php else: ?>
+                    <div class="no-prodotti">
+                        <div class="no-prodotti-icon">📦</div>
+                        <p>Nessun prodotto con scorte sufficienti</p>
+                    </div>
+                <?php endif; ?>
             </div>
             
-            <div class="card" onclick="alert('Funzionalità in sviluppo')">
-                <div class="card-icon">🏷️</div>
-                <h3>Categorie</h3>
-                <p>Gestisci le categorie dei prodotti</p>
-            </div>
-            
-            <div class="card" onclick="alert('Funzionalità in sviluppo')">
-                <div class="card-icon">⚙️</div>
-                <h3>Impostazioni</h3>
-                <p>Configura le impostazioni del sistema</p>
+            <!-- Grafico a torta -->
+            <div class="card chart-full-width">
+                <div class="card-header">
+                    <span class="card-icon">📊</span>
+                    <h3>Distribuzione Quantità Prodotti</h3>
+                </div>
+                <div class="chart-container">
+                    <canvas id="pieChart"></canvas>
+                </div>
             </div>
         </div>
     </div>
@@ -491,86 +654,91 @@ $privilegi = $_SESSION['privilegi'];
         
         overlay.addEventListener('click', toggleSidebar);
         
-        // Chiudi sidebar quando clicchi su un menu item
+        // Menu items
         const menuItems = document.querySelectorAll('.menu-item');
         menuItems.forEach(item => {
             item.addEventListener('click', function() {
-                menuItems.forEach(i => i.classList.remove('active'));
-                this.classList.add('active');
-                
-                // Chiudi la sidebar dopo aver cliccato un item
                 if (window.innerWidth <= 768) {
                     toggleSidebar();
                 }
             });
         });
         
-        // Animazione contatori
-        function animateCounter(element, end, duration) {
-            let start = 0;
-            const increment = end / (duration / 16);
-            
-            const timer = setInterval(() => {
-                start += increment;
-                if (start >= end) {
-                    element.textContent = end;
-                    clearInterval(timer);
-                } else {
-                    element.textContent = Math.floor(start);
-                }
-            }, 16);
-        }
+        // Dati per il grafico
+        const prodotti = <?php echo json_encode($prodotti); ?>;
         
-        // Simula dati
-        window.addEventListener('load', () => {
-            setTimeout(() => {
-                animateCounter(document.getElementById('totaleProdotti'), 127, 1500);
-                animateCounter(document.getElementById('categorie'), 8, 1200);
-            }, 300);
+        // Prepara dati per grafico a torta
+        const labels = [];
+        const quantities = [];
+        const backgroundColors = [];
+        
+        prodotti.forEach(prod => {
+            labels.push(prod.nome);
+            quantities.push(parseInt(prod.quantita));
             
-            // Anima il valore monetario
-            setTimeout(() => {
-                let valore = 0;
-                const valoreFinale = 15420;
-                const valoreElement = document.getElementById('valore');
-                
-                const timer = setInterval(() => {
-                    valore += 150;
-                    if (valore >= valoreFinale) {
-                        valoreElement.textContent = '€ ' + valoreFinale.toLocaleString('it-IT');
-                        clearInterval(timer);
-                    } else {
-                        valoreElement.textContent = '€ ' + valore.toLocaleString('it-IT');
+            // Colore rosso se < 5, verde altrimenti
+            if (parseInt(prod.quantita) < 5) {
+                backgroundColors.push('#ff6b6b');
+            } else {
+                backgroundColors.push('#4caf50');
+            }
+        });
+        
+        // Crea grafico a torta
+        const ctx = document.getElementById('pieChart').getContext('2d');
+        const pieChart = new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: quantities,
+                    backgroundColor: backgroundColors,
+                    borderColor: '#fff',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: {
+                            padding: 15,
+                            font: {
+                                size: 12
+                            },
+                            generateLabels: function(chart) {
+                                const data = chart.data;
+                                if (data.labels.length && data.datasets.length) {
+                                    return data.labels.map((label, i) => {
+                                        const value = data.datasets[0].data[i];
+                                        const color = data.datasets[0].backgroundColor[i];
+                                        return {
+                                            text: label + ': ' + value + ' pz',
+                                            fillStyle: color,
+                                            hidden: false,
+                                            index: i
+                                        };
+                                    });
+                                }
+                                return [];
+                            }
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.label || '';
+                                const value = context.parsed || 0;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = ((value / total) * 100).toFixed(1);
+                                return label + ': ' + value + ' pz (' + percentage + '%)';
+                            }
+                        }
                     }
-                }, 16);
-            }, 300);
-        });
-        
-        // Aggiungi effetto parallasse leggero alle card
-        const cards = document.querySelectorAll('.card');
-        cards.forEach((card, index) => {
-            card.style.animationDelay = (index * 0.1) + 's';
-        });
-        
-        // Effetto hover con movimento del mouse
-        cards.forEach(card => {
-            card.addEventListener('mousemove', (e) => {
-                const rect = card.getBoundingClientRect();
-                const x = e.clientX - rect.left;
-                const y = e.clientY - rect.top;
-                
-                const centerX = rect.width / 2;
-                const centerY = rect.height / 2;
-                
-                const rotateX = (y - centerY) / 20;
-                const rotateY = (centerX - x) / 20;
-                
-                card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateY(-5px)`;
-            });
-            
-            card.addEventListener('mouseleave', () => {
-                card.style.transform = 'perspective(1000px) rotateX(0) rotateY(0) translateY(0)';
-            });
+                }
+            }
         });
     </script>
 </body>
