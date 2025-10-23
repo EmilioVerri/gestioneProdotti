@@ -30,28 +30,18 @@ try {
     die('Errore di connessione: ' . $e->getMessage());
 }
 
-// Gestione filtri
-$dataInizio = isset($_GET['data_inizio']) ? $_GET['data_inizio'] : '';
-$dataFine = isset($_GET['data_fine']) ? $_GET['data_fine'] : '';
+// Gestione filtri - SEMPLIFICATI
 $tipoFiltro = isset($_GET['tipo_filtro']) ? $_GET['tipo_filtro'] : 'tutti';
 $prodottoFiltro = isset($_GET['prodotto_filtro']) ? $_GET['prodotto_filtro'] : '';
 $paginaCorrente = isset($_GET['pagina']) ? max(1, intval($_GET['pagina'])) : 1;
-$righePerPagina = 5;
+$righePerPagina = 50;
 $offset = ($paginaCorrente - 1) * $righePerPagina;
 
-// Costruisci query con filtri
+// Costruisci query con filtri SEMPLIFICATA - ordina sempre per ID decrescente
 $query = "SELECT * FROM storicomovimenti WHERE 1=1";
 $params = [];
 
-// Filtro per data
-if ($dataInizio && $dataFine) {
-    // Converti le date dal formato yyyy-mm-dd al formato dd/mm/yyyy per il confronto
-    $query .= " AND STR_TO_DATE(dataMovimento, '%d/%m/%Y %H:%i') BETWEEN STR_TO_DATE(?, '%Y-%m-%d 00:00') AND STR_TO_DATE(?, '%Y-%m-%d 23:59')";
-    $params[] = $dataInizio;
-    $params[] = $dataFine;
-}
-
-// Filtro per tipo movimento (campo movimento è VARCHAR con "-" per negativi)
+// Filtro per tipo movimento
 if ($tipoFiltro === 'entrate') {
     $query .= " AND movimento NOT LIKE '-%'";
 } elseif ($tipoFiltro === 'uscite') {
@@ -64,25 +54,22 @@ if ($prodottoFiltro) {
     $params[] = '%' . $prodottoFiltro . '%';
 }
 
-// Conta totale righe per paginazione (prima dei LIMIT/OFFSET)
+// Conta totale righe per paginazione
 $queryCount = str_replace("SELECT *", "SELECT COUNT(*) as total", $query);
 $stmtCount = $pdo->prepare($queryCount);
 $stmtCount->execute($params);
 $totaleRighe = $stmtCount->fetch(PDO::FETCH_ASSOC)['total'];
 $totalePagine = ceil($totaleRighe / $righePerPagina);
 
-// Aggiungi ordinamento cronologico decrescente (più recenti prima) e paginazione
-// Se non ci sono dati in dataMovimento, ordina per id
-$query .= " ORDER BY id DESC LIMIT ? OFFSET ?";
-$params[] = $righePerPagina;
-$params[] = $offset;
+// Query principale con paginazione - ORDINA PER ID DECRESCENTE
+$query .= " ORDER BY id DESC LIMIT $righePerPagina OFFSET $offset";
 
 try {
     $stmt = $pdo->prepare($query);
     $stmt->execute($params);
     $movimenti = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
-    $movimenti = [];
+    die('Errore query: ' . $e->getMessage());
 }
 
 // Carica lista prodotti per il filtro
@@ -93,17 +80,28 @@ try {
     $prodotti = [];
 }
 
-// Calcola statistiche per i movimenti filtrati
-$totaleEntrate = 0;
-$totaleUscite = 0;
-foreach ($movimenti as $mov) {
-    $movimentoValue = $mov['movimento'];
-    // Se inizia con "-" è un'uscita, altrimenti è un'entrata
-    if (strpos($movimentoValue, '-') === 0) {
-        $totaleUscite += abs(intval($movimentoValue));
-    } else {
-        $totaleEntrate += abs(intval($movimentoValue));
+// Calcola statistiche TOTALI
+$queryStats = str_replace(" ORDER BY id DESC LIMIT $righePerPagina OFFSET $offset", "", $query);
+try {
+    $stmtStats = $pdo->prepare($queryStats);
+    $stmtStats->execute($params);
+    $movimentiStats = $stmtStats->fetchAll(PDO::FETCH_ASSOC);
+    
+    $totaleEntrate = 0;
+    $totaleUscite = 0;
+    foreach ($movimentiStats as $mov) {
+        $movimentoValue = str_replace('+', '', $mov['movimento']);
+        $movimentoValue = intval($movimentoValue);
+        
+        if (strpos($mov['movimento'], '-') === 0) {
+            $totaleUscite += abs($movimentoValue);
+        } else {
+            $totaleEntrate += abs($movimentoValue);
+        }
     }
+} catch (PDOException $e) {
+    $totaleEntrate = 0;
+    $totaleUscite = 0;
 }
 ?>
 <!DOCTYPE html>
@@ -448,7 +446,7 @@ foreach ($movimenti as $mov) {
         
         .filters-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             gap: 20px;
             margin-bottom: 20px;
         }
@@ -511,6 +509,8 @@ foreach ($movimenti as $mov) {
         .btn-reset {
             background: #e0e0e0;
             color: #1a1a1a;
+            text-decoration: none;
+            display: inline-block;
         }
         
         .btn-reset:hover {
@@ -544,9 +544,14 @@ foreach ($movimenti as $mov) {
             font-size: 20px;
         }
         
+        .table-wrapper {
+            overflow-x: auto;
+        }
+        
         .movimenti-table {
             width: 100%;
             border-collapse: collapse;
+            min-width: 800px;
         }
         
         .movimenti-table thead {
@@ -572,8 +577,8 @@ foreach ($movimenti as $mov) {
         }
         
         .movimenti-table tbody tr:hover {
-            background: #f9f9f9;
-            transform: scale(1.01);
+            transform: scale(1.002);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
         
         .row-entrata {
@@ -639,6 +644,7 @@ foreach ($movimenti as $mov) {
             gap: 10px;
             margin-top: 30px;
             padding: 20px 0;
+            flex-wrap: wrap;
         }
         
         .pagination-btn {
@@ -654,7 +660,7 @@ foreach ($movimenti as $mov) {
             display: inline-block;
         }
         
-        .pagination-btn:hover {
+        .pagination-btn:hover:not(:disabled) {
             background: #1a1a1a;
             color: white;
             border-color: #1a1a1a;
@@ -674,6 +680,30 @@ foreach ($movimenti as $mov) {
         .pagination-info {
             color: #666;
             font-size: 14px;
+            padding: 0 10px;
+        }
+        
+        .debug-box {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .debug-box h3 {
+            color: #856404;
+            margin-bottom: 15px;
+        }
+        
+        .debug-box pre {
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
         }
         
         @media (max-width: 768px) {
@@ -733,14 +763,35 @@ foreach ($movimenti as $mov) {
         </div>
         <div class="user-info">
             <span>Benvenuto, <strong><?php echo htmlspecialchars($username); ?></strong></span>
-         <a href=".\logout.php" class="btn-logout">Logout</a>
+            <a href="./logout.php" class="btn-logout">Logout</a>
         </div>
     </nav>
     
     <div class="container">
+        <!-- DEBUG MODE -->
+        <?php if (isset($_GET['debug'])): ?>
+        <div class="debug-box">
+            <h3>🔍 DEBUG - Informazioni Database</h3>
+            <pre><?php
+                echo "Totale record: " . $pdo->query("SELECT COUNT(*) FROM storicomovimenti")->fetchColumn() . "\n\n";
+                echo "Ultimi 10 record:\n";
+                $debugStmt = $pdo->query("SELECT * FROM storicomovimenti ORDER BY id DESC LIMIT 10");
+                print_r($debugStmt->fetchAll(PDO::FETCH_ASSOC));
+                echo "\n\nQuery utilizzata:\n" . $query;
+                echo "\n\nParametri:\n";
+                print_r($params);
+            ?></pre>
+            <p style="margin-top: 15px;"><a href="?" style="color: #856404; font-weight: bold;">← Torna alla vista normale</a></p>
+        </div>
+        <?php endif; ?>
+        
         <div class="page-header">
             <h2>Storico Movimenti Magazzino</h2>
-            <p>Visualizza e filtra tutti i movimenti di entrata e uscita</p>
+            <p>Visualizza tutti i movimenti ordinati dal più recente (50 righe per pagina)
+            <?php if (!isset($_GET['debug'])): ?>
+                - <a href="?debug=1" style="color: #666; text-decoration: underline;">Modalità Debug</a>
+            <?php endif; ?>
+            </p>
         </div>
         
         <!-- Statistiche -->
@@ -750,11 +801,11 @@ foreach ($movimenti as $mov) {
                 <div class="number"><?php echo $totaleRighe; ?></div>
             </div>
             <div class="stat-card">
-                <h4>Entrate (pagina corrente)</h4>
+                <h4>Totale Entrate</h4>
                 <div class="number stat-entrate">+<?php echo $totaleEntrate; ?></div>
             </div>
             <div class="stat-card">
-                <h4>Uscite (pagina corrente)</h4>
+                <h4>Totale Uscite</h4>
                 <div class="number stat-uscite">-<?php echo $totaleUscite; ?></div>
             </div>
         </div>
@@ -775,32 +826,22 @@ foreach ($movimenti as $mov) {
             <form method="GET" action="">
                 <div class="filters-grid">
                     <div class="filter-group">
-                        <label for="data_inizio">Data Inizio</label>
-                        <input type="date" id="data_inizio" name="data_inizio" value="<?php echo htmlspecialchars($dataInizio); ?>">
-                    </div>
-                    
-                    <div class="filter-group">
-                        <label for="data_fine">Data Fine</label>
-                        <input type="date" id="data_fine" name="data_fine" value="<?php echo htmlspecialchars($dataFine); ?>">
-                    </div>
-                    
-                    <div class="filter-group">
                         <label for="tipo_filtro">Tipo Movimento</label>
                         <select id="tipo_filtro" name="tipo_filtro">
-                            <option value="tutti" <?php echo $tipoFiltro === 'tutti' ? 'selected' : ''; ?>>Tutti</option>
-                            <option value="entrate" <?php echo $tipoFiltro === 'entrate' ? 'selected' : ''; ?>>Solo Entrate</option>
-                            <option value="uscite" <?php echo $tipoFiltro === 'uscite' ? 'selected' : ''; ?>>Solo Uscite</option>
+                            <option value="tutti" <?php echo $tipoFiltro === 'tutti' ? 'selected' : ''; ?>>Tutti i Movimenti</option>
+                            <option value="entrate" <?php echo $tipoFiltro === 'entrate' ? 'selected' : ''; ?>>Solo Entrate (Verde)</option>
+                            <option value="uscite" <?php echo $tipoFiltro === 'uscite' ? 'selected' : ''; ?>>Solo Uscite (Rosso)</option>
                         </select>
                     </div>
                     
                     <div class="filter-group">
-                        <label for="prodotto_filtro">Prodotto</label>
+                        <label for="prodotto_filtro">Cerca Prodotto</label>
                         <input type="text" id="prodotto_filtro" name="prodotto_filtro" placeholder="Nome prodotto..." value="<?php echo htmlspecialchars($prodottoFiltro); ?>">
                     </div>
                 </div>
                 
                 <div class="filter-buttons">
-                    <a href="storico_movimenti.php" class="btn-filter btn-reset">Resetta Filtri</a>
+                    <a href="storicoEntrateUscite.php" class="btn-filter btn-reset">Resetta Filtri</a>
                     <button type="submit" class="btn-filter btn-apply">Applica Filtri</button>
                 </div>
             </form>
@@ -810,69 +851,92 @@ foreach ($movimenti as $mov) {
         <div class="table-card">
             <div class="table-header">
                 <span class="table-icon">📋</span>
-                <h3>Elenco Movimenti</h3>
+                <h3>Elenco Movimenti (Pagina <?php echo $paginaCorrente; ?> di <?php echo $totalePagine; ?>)</h3>
             </div>
             
             <?php if (count($movimenti) > 0): ?>
-                <table class="movimenti-table">
-                    <thead>
-                        <tr>
-                            <th>Data e Ora</th>
-                            <th>Prodotto</th>
-                            <th>Movimento</th>
-                            <th>Utente</th>
-                            <th>N. Bolla</th>
-                            <th>Descrizione</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($movimenti as $mov): ?>
-                            <?php 
-                            // Controlla se il movimento inizia con "-" per determinare se è uscita
-                            $isUscita = (strpos($mov['movimento'], '-') === 0);
-                            $movimentoValue = abs(intval($mov['movimento']));
-                            ?>
-                            <tr class="<?php echo $isUscita ? 'row-uscita' : 'row-entrata'; ?>">
-                                <td><?php echo htmlspecialchars($mov['dataMovimento']); ?></td>
-                                <td class="prodotto-nome"><?php echo htmlspecialchars($mov['idProdotto']); ?></td>
-                                <td>
-                                    <?php if ($isUscita): ?>
-                                        <span class="badge-movimento badge-uscita">
-                                            <span>📤</span>
-                                            <span>-<?php echo $movimentoValue; ?></span>
-                                        </span>
-                                    <?php else: ?>
-                                        <span class="badge-movimento badge-entrata">
-                                            <span>📥</span>
-                                            <span>+<?php echo $movimentoValue; ?></span>
-                                        </span>
-                                    <?php endif; ?>
-                                </td>
-                                <td><?php echo htmlspecialchars($mov['idUtente']); ?></td>
-                                <td><?php echo htmlspecialchars($mov['bollaNumero'] ?: '-'); ?></td>
-                                <td><?php echo htmlspecialchars($mov['descrizione'] ?: '-'); ?></td>
+                <div class="table-wrapper">
+                    <table class="movimenti-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Data e Ora</th>
+                                <th>Prodotto</th>
+                                <th>Movimento</th>
+                                <th>Utente</th>
+                                <th>N. Bolla</th>
+                                <th>Descrizione</th>
                             </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                         <?php foreach ($movimenti as $mov): ?>
+                                <?php 
+                                $isUscita = (strpos($mov['movimento'], '-') === 0);
+                                $movimentoValue = abs(intval($mov['movimento']));
+                                ?>
+                                <tr class="<?php echo $isUscita ? 'row-uscita' : 'row-entrata'; ?>">
+                                    <td><?php echo htmlspecialchars($mov['id']); ?></td>
+                                    <td><?php echo htmlspecialchars($mov['dataMovimento']); ?></td>
+                                    <td class="prodotto-nome"><?php echo htmlspecialchars($mov['idProdotto']); ?></td>
+                                    <td>
+                                        <span class="badge-movimento <?php echo $isUscita ? 'badge-uscita' : 'badge-entrata'; ?>">
+                                            <?php echo $isUscita ? '↓' : '↑'; ?>
+                                            <?php echo $isUscita ? '-' : '+'; ?><?php echo $movimentoValue; ?>
+                                        </span>
+                                    </td>
+                                    <td><?php echo htmlspecialchars($mov['idUtente']); ?></td>
+                                    <td><?php echo htmlspecialchars($mov['bollaNumero'] ?: '-'); ?></td>
+                                    <td><?php echo htmlspecialchars($mov['descrizione'] ?: '-'); ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
                 
                 <!-- Paginazione -->
                 <?php if ($totalePagine > 1): ?>
                     <div class="pagination">
                         <?php if ($paginaCorrente > 1): ?>
-                            <a href="?pagina=<?php echo $paginaCorrente - 1; ?><?php echo $dataInizio ? '&data_inizio=' . $dataInizio : ''; ?><?php echo $dataFine ? '&data_fine=' . $dataFine : ''; ?><?php echo $tipoFiltro !== 'tutti' ? '&tipo_filtro=' . $tipoFiltro : ''; ?><?php echo $prodottoFiltro ? '&prodotto_filtro=' . urlencode($prodottoFiltro) : ''; ?>" class="pagination-btn">
+                            <a href="?pagina=<?php echo $paginaCorrente - 1; ?><?php echo $tipoFiltro !== 'tutti' ? '&tipo_filtro=' . $tipoFiltro : ''; ?><?php echo $prodottoFiltro ? '&prodotto_filtro=' . urlencode($prodottoFiltro) : ''; ?>" class="pagination-btn">
                                 ← Precedente
                             </a>
                         <?php else: ?>
                             <button class="pagination-btn" disabled>← Precedente</button>
                         <?php endif; ?>
                         
+                        <?php
+                        $range = 2;
+                        $start = max(1, $paginaCorrente - $range);
+                        $end = min($totalePagine, $paginaCorrente + $range);
+                        
+                        if ($start > 1) {
+                            ?>
+                            <a href="?pagina=1<?php echo $tipoFiltro !== 'tutti' ? '&tipo_filtro=' . $tipoFiltro : ''; ?><?php echo $prodottoFiltro ? '&prodotto_filtro=' . urlencode($prodottoFiltro) : ''; ?>" class="pagination-btn">1</a>
+                            <?php if ($start > 2): ?>
+                                <span class="pagination-info">...</span>
+                            <?php endif;
+                        }
+                        
+                        for ($i = $start; $i <= $end; $i++): ?>
+                            <a href="?pagina=<?php echo $i; ?><?php echo $tipoFiltro !== 'tutti' ? '&tipo_filtro=' . $tipoFiltro : ''; ?><?php echo $prodottoFiltro ? '&prodotto_filtro=' . urlencode($prodottoFiltro) : ''; ?>" 
+                               class="pagination-btn <?php echo $i === $paginaCorrente ? 'active' : ''; ?>">
+                                <?php echo $i; ?>
+                            </a>
+                        <?php endfor;
+                        
+                        if ($end < $totalePagine) {
+                            if ($end < $totalePagine - 1): ?>
+                                <span class="pagination-info">...</span>
+                            <?php endif; ?>
+                            <a href="?pagina=<?php echo $totalePagine; ?><?php echo $tipoFiltro !== 'tutti' ? '&tipo_filtro=' . $tipoFiltro : ''; ?><?php echo $prodottoFiltro ? '&prodotto_filtro=' . urlencode($prodottoFiltro) : ''; ?>" class="pagination-btn"><?php echo $totalePagine; ?></a>
+                        <?php } ?>
+                        
                         <span class="pagination-info">
                             Pagina <?php echo $paginaCorrente; ?> di <?php echo $totalePagine; ?>
                         </span>
                         
                         <?php if ($paginaCorrente < $totalePagine): ?>
-                            <a href="?pagina=<?php echo $paginaCorrente + 1; ?><?php echo $dataInizio ? '&data_inizio=' . $dataInizio : ''; ?><?php echo $dataFine ? '&data_fine=' . $dataFine : ''; ?><?php echo $tipoFiltro !== 'tutti' ? '&tipo_filtro=' . $tipoFiltro : ''; ?><?php echo $prodottoFiltro ? '&prodotto_filtro=' . urlencode($prodottoFiltro) : ''; ?>" class="pagination-btn">
+                            <a href="?pagina=<?php echo $paginaCorrente + 1; ?><?php echo $tipoFiltro !== 'tutti' ? '&tipo_filtro=' . $tipoFiltro : ''; ?><?php echo $prodottoFiltro ? '&prodotto_filtro=' . urlencode($prodottoFiltro) : ''; ?>" class="pagination-btn">
                                 Successiva →
                             </a>
                         <?php else: ?>
@@ -884,7 +948,7 @@ foreach ($movimenti as $mov) {
                 <div class="no-data">
                     <div class="no-data-icon">📭</div>
                     <h3>Nessun movimento trovato</h3>
-                    <p>Prova a modificare i filtri di ricerca</p>
+                    <p>Non ci sono movimenti nel database o i filtri applicati non hanno prodotto risultati</p>
                 </div>
             <?php endif; ?>
         </div>
@@ -917,7 +981,6 @@ foreach ($movimenti as $mov) {
         
         overlay.addEventListener('click', toggleSidebar);
         
-        // Menu items
         const menuItems = document.querySelectorAll('.menu-item');
         menuItems.forEach(item => {
             item.addEventListener('click', function() {
@@ -928,27 +991,39 @@ foreach ($movimenti as $mov) {
         });
         
         // Dati movimenti per export PDF
-        const movimentiData = <?php echo json_encode($movimenti); ?>;
+        const movimentiData = <?php 
+            $queryPdf = str_replace(" ORDER BY id DESC LIMIT $righePerPagina OFFSET $offset", " ORDER BY id DESC", $query);
+            try {
+                $stmtPdf = $pdo->prepare($queryPdf);
+                $stmtPdf->execute($params);
+                $movimentiPdf = $stmtPdf->fetchAll(PDO::FETCH_ASSOC);
+                echo json_encode($movimentiPdf);
+            } catch (PDOException $e) {
+                echo '[]';
+            }
+        ?>;
         
         // Funzione esporta PDF
         async function esportaPDF() {
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF();
+            if (movimentiData.length === 0) {
+                alert('Nessun movimento da esportare!');
+                return;
+            }
             
-            // Titolo
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({
+                orientation: 'landscape',
+                unit: 'mm',
+                format: 'a4'
+            });
+            
             doc.setFontSize(18);
             doc.setFont(undefined, 'bold');
             doc.text('Storico Movimenti Magazzino', 14, 20);
             
-            // Info filtri
             doc.setFontSize(10);
             doc.setFont(undefined, 'normal');
             let yPos = 30;
-            
-            <?php if ($dataInizio && $dataFine): ?>
-            doc.text('Periodo: <?php echo $dataInizio; ?> - <?php echo $dataFine; ?>', 14, yPos);
-            yPos += 6;
-            <?php endif; ?>
             
             <?php if ($tipoFiltro !== 'tutti'): ?>
             doc.text('Tipo: <?php echo ucfirst($tipoFiltro); ?>', 14, yPos);
@@ -961,97 +1036,117 @@ foreach ($movimenti as $mov) {
             <?php endif; ?>
             
             doc.text('Data generazione: ' + new Date().toLocaleString('it-IT'), 14, yPos);
+            doc.text('Totale movimenti: ' + movimentiData.length, 200, yPos);
             yPos += 10;
             
-            // Prepara dati per la tabella
+            let totaleEntrateExp = 0;
+            let totaleUsciteExp = 0;
+            
             const tableData = movimentiData.map(mov => {
-                // Controlla se inizia con "-" per determinare il tipo
                 const isUscita = mov.movimento.toString().startsWith('-');
                 const movimentoNum = Math.abs(parseInt(mov.movimento));
                 const movimento = isUscita ? '-' + movimentoNum : '+' + movimentoNum;
                 const tipo = isUscita ? 'USCITA' : 'ENTRATA';
+                
+                if (isUscita) {
+                    totaleUsciteExp += movimentoNum;
+                } else {
+                    totaleEntrateExp += movimentoNum;
+                }
+                
                 return [
+                    mov.id,
                     mov.dataMovimento,
                     mov.idProdotto,
                     tipo,
                     movimento,
                     mov.idUtente,
                     mov.bollaNumero || '-',
-                    mov.descrizione || '-'
+                    (mov.descrizione || '-').substring(0, 25)
                 ];
             });
             
-            // Aggiungi tabella
             doc.autoTable({
                 startY: yPos,
-                head: [['Data/Ora', 'Prodotto', 'Tipo', 'Qta', 'Utente', 'Bolla', 'Descrizione']],
+                head: [['ID', 'Data/Ora', 'Prodotto', 'Tipo', 'Qta', 'Utente', 'Bolla', 'Descrizione']],
                 body: tableData,
                 styles: {
-                    fontSize: 8,
-                    cellPadding: 3
+                    fontSize: 7,
+                    cellPadding: 2
                 },
                 headStyles: {
                     fillColor: [26, 26, 26],
                     textColor: [255, 255, 255],
-                    fontStyle: 'bold'
+                    fontStyle: 'bold',
+                    halign: 'center'
                 },
                 alternateRowStyles: {
                     fillColor: [245, 245, 245]
                 },
                 columnStyles: {
-                    0: { cellWidth: 28 },
+                    0: { cellWidth: 15, halign: 'center' },
                     1: { cellWidth: 35 },
-                    2: { cellWidth: 20 },
-                    3: { cellWidth: 15 },
-                    4: { cellWidth: 25 },
-                    5: { cellWidth: 20 },
-                    6: { cellWidth: 45 }
+                    2: { cellWidth: 40 },
+                    3: { cellWidth: 25, halign: 'center' },
+                    4: { cellWidth: 20, halign: 'right' },
+                    5: { cellWidth: 30 },
+                    6: { cellWidth: 20 },
+                    7: { cellWidth: 45 }
                 },
                 didParseCell: function(data) {
-                    // Colora le righe in base al tipo
-                    if (data.section === 'body' && data.column.index === 2) {
-                        if (data.cell.raw === 'ENTRATA') {
-                            data.cell.styles.fillColor = [232, 245, 233];
-                            data.cell.styles.textColor = [76, 175, 80];
-                            data.cell.styles.fontStyle = 'bold';
-                        } else if (data.cell.raw === 'USCITA') {
-                            data.cell.styles.fillColor = [255, 235, 238];
-                            data.cell.styles.textColor = [255, 107, 107];
-                            data.cell.styles.fontStyle = 'bold';
+                    if (data.section === 'body') {
+                        if (data.column.index === 3) {
+                            if (data.cell.raw === 'ENTRATA') {
+                                data.row.cells[0].styles.fillColor = [232, 245, 233];
+                                data.row.cells[1].styles.fillColor = [232, 245, 233];
+                                data.row.cells[2].styles.fillColor = [232, 245, 233];
+                                data.row.cells[3].styles.fillColor = [76, 175, 80];
+                                data.row.cells[3].styles.textColor = [255, 255, 255];
+                                data.row.cells[3].styles.fontStyle = 'bold';
+                                data.row.cells[4].styles.fillColor = [232, 245, 233];
+                                data.row.cells[4].styles.textColor = [76, 175, 80];
+                                data.row.cells[4].styles.fontStyle = 'bold';
+                                data.row.cells[5].styles.fillColor = [232, 245, 233];
+                                data.row.cells[6].styles.fillColor = [232, 245, 233];
+                                data.row.cells[7].styles.fillColor = [232, 245, 233];
+                            } else if (data.cell.raw === 'USCITA') {
+                                data.row.cells[0].styles.fillColor = [255, 235, 238];
+                                data.row.cells[1].styles.fillColor = [255, 235, 238];
+                                data.row.cells[2].styles.fillColor = [255, 235, 238];
+                                data.row.cells[3].styles.fillColor = [255, 107, 107];
+                                data.row.cells[3].styles.textColor = [255, 255, 255];
+                                data.row.cells[3].styles.fontStyle = 'bold';
+                                data.row.cells[4].styles.fillColor = [255, 235, 238];
+                                data.row.cells[4].styles.textColor = [255, 107, 107];
+                                data.row.cells[4].styles.fontStyle = 'bold';
+                                data.row.cells[5].styles.fillColor = [255, 235, 238];
+                                data.row.cells[6].styles.fillColor = [255, 235, 238];
+                                data.row.cells[7].styles.fillColor = [255, 235, 238];
+                            }
                         }
                     }
-                }
+                },
+                margin: { top: yPos, left: 14, right: 14 }
             });
             
-            // Footer con totali
             const finalY = doc.lastAutoTable.finalY + 10;
-            doc.setFontSize(10);
+            doc.setFontSize(11);
             doc.setFont(undefined, 'bold');
-            doc.text('Totale Entrate: +<?php echo $totaleEntrate; ?>', 14, finalY);
-            doc.text('Totale Uscite: -<?php echo $totaleUscite; ?>', 14, finalY + 6);
-            doc.text('Totale Movimenti: <?php echo count($movimenti); ?>', 14, finalY + 12);
+            doc.setTextColor(76, 175, 80);
+            doc.text('Totale Entrate: +' + totaleEntrateExp, 14, finalY);
+            doc.setTextColor(255, 107, 107);
+            doc.text('Totale Uscite: -' + totaleUsciteExp, 80, finalY);
+            doc.setTextColor(0, 0, 0);
+            doc.text('Totale Movimenti: ' + movimentiData.length, 145, finalY);
             
-            // Salva PDF
             const dataOggi = new Date().toISOString().split('T')[0];
             doc.save('storico_movimenti_' + dataOggi + '.pdf');
         }
         
-        // Validazione date
-        const dataInizio = document.getElementById('data_inizio');
-        const dataFine = document.getElementById('data_fine');
-        
-        dataInizio.addEventListener('change', function() {
-            if (dataFine.value && this.value > dataFine.value) {
-                alert('La data di inizio non può essere successiva alla data di fine');
-                this.value = '';
-            }
-        });
-        
-        dataFine.addEventListener('change', function() {
-            if (dataInizio.value && this.value < dataInizio.value) {
-                alert('La data di fine non può essere precedente alla data di inizio');
-                this.value = '';
-            }
+        window.addEventListener('load', function() {
+            document.querySelectorAll('.stat-card, .filters-card, .table-card').forEach((el, index) => {
+                el.style.animationDelay = (index * 0.1) + 's';
+            });
         });
     </script>
 </body>
