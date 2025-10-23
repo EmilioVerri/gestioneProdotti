@@ -940,9 +940,7 @@ try {
         
         <?php include './widget/menu.php'; ?>
         
-        <div class="sidebar-footer">
-            v1.0.0 - © 2025
-        </div>
+       
     </div>
     
     <!-- Navbar -->
