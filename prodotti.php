@@ -26,6 +26,23 @@ $db_password = '';
 $errore = '';
 $successo = '';
 
+// Gestione eliminazione prodotto
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['elimina_prodotto'])) {
+    $id = intval($_POST['id']);
+    
+    try {
+        $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $db_username, $db_password);
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        
+        $stmt = $pdo->prepare("DELETE FROM prodotti WHERE id = ?");
+        $stmt->execute([$id]);
+        
+        $successo = 'Prodotto eliminato con successo!';
+    } catch (PDOException $e) {
+        $errore = 'Errore durante l\'eliminazione: ' . $e->getMessage();
+    }
+}
+
 // Gestione modifica prodotto
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['modifica_prodotto'])) {
     $id = intval($_POST['id']);
@@ -445,9 +462,12 @@ try {
             word-break: break-word;
         }
         
-        .btn-modifica {
-            background: #1a1a1a;
-            color: white;
+        .prodotto-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .btn-modifica, .btn-elimina {
             border: none;
             width: 40px;
             height: 40px;
@@ -460,9 +480,24 @@ try {
             justify-content: center;
         }
         
+        .btn-modifica {
+            background: #1a1a1a;
+            color: white;
+        }
+        
         .btn-modifica:hover {
             background: #000;
             transform: rotate(90deg) scale(1.1);
+        }
+        
+        .btn-elimina {
+            background: #ff4444;
+            color: white;
+        }
+        
+        .btn-elimina:hover {
+            background: #cc0000;
+            transform: scale(1.1);
         }
         
         .prodotto-info {
@@ -870,7 +905,7 @@ try {
         <button class="popup-close" onclick="closePopup()">×</button>
     </div>
     
-    <!-- Confirm Dialog -->
+    <!-- Confirm Dialog Modifica -->
     <div class="confirm-dialog" id="confirmDialog">
         <div class="confirm-content">
             <div class="confirm-icon">⚠️</div>
@@ -883,6 +918,19 @@ try {
         </div>
     </div>
     
+    <!-- Confirm Dialog Eliminazione -->
+    <div class="confirm-dialog" id="confirmDeleteDialog">
+        <div class="confirm-content">
+            <div class="confirm-icon">🗑️</div>
+            <div class="confirm-title">Conferma Eliminazione</div>
+            <div class="confirm-message" id="deleteMessage">Sei sicuro di voler eliminare questo prodotto? Questa azione è irreversibile!</div>
+            <div class="confirm-buttons">
+                <button class="btn btn-secondary" onclick="closeDeleteConfirm()">Annulla</button>
+                <button class="btn btn-primary" style="background: #ff4444;" onclick="confirmDelete()">Elimina</button>
+            </div>
+        </div>
+    </div>
+    
     <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
@@ -890,7 +938,7 @@ try {
             <div class="sidebar-title">Gestione Prodotti</div>
         </div>
         
-       <?php include './widget/menu.php'; ?>
+        <?php include './widget/menu.php'; ?>
         
         <div class="sidebar-footer">
             v1.0.0 - © 2025
@@ -906,7 +954,7 @@ try {
         </div>
         <div class="user-info">
             <span>Benvenuto, <strong><?php echo htmlspecialchars($username); ?></strong></span>
-          <a href=".\logout.php" class="btn-logout">Logout</a>
+            <a href=".\logout.php" class="btn-logout">Logout</a>
         </div>
     </nav>
     
@@ -952,9 +1000,14 @@ try {
                          data-fornitore="<?php echo strtolower(htmlspecialchars($prodotto['fornitore'])); ?>">
                         <div class="prodotto-header">
                             <div class="prodotto-nome"><?php echo htmlspecialchars($prodotto['nome']); ?></div>
-                            <button class="btn-modifica" onclick="openModal(<?php echo htmlspecialchars(json_encode($prodotto)); ?>)">
-                                ✏️
-                            </button>
+                            <div class="prodotto-actions">
+                                <button class="btn-modifica" onclick="openModal(<?php echo htmlspecialchars(json_encode($prodotto)); ?>)" title="Modifica prodotto">
+                                    ✏️
+                                </button>
+                                <button class="btn-elimina" onclick="showDeleteConfirm(<?php echo $prodotto['id']; ?>, '<?php echo addslashes(htmlspecialchars($prodotto['nome'])); ?>')" title="Elimina prodotto">
+                                    🗑️
+                                </button>
+                            </div>
                         </div>
                         
                         <div class="prodotto-info">
@@ -1000,7 +1053,6 @@ try {
                     </div>
                     
                     <div class="form-group">
-                        <!--<label for="edit_quantita">Quantità *</label>-->
                         <input type="number" id="edit_quantita" name="quantita" min="0" style="display:none">
                     </div>
                     
@@ -1104,7 +1156,9 @@ try {
         
         // Confirm Dialog Functions
         const confirmDialog = document.getElementById('confirmDialog');
+        const confirmDeleteDialog = document.getElementById('confirmDeleteDialog');
         let pendingForm = null;
+        let pendingDeleteId = null;
         
         function showConfirm(event) {
             event.preventDefault();
@@ -1120,13 +1174,11 @@ try {
         
         function confirmModifica() {
             if (pendingForm) {
-                // Crea un form reale e invialo
                 const formData = new FormData(pendingForm);
                 const form = document.createElement('form');
                 form.method = 'POST';
                 form.action = '';
                 
-                // Aggiungi tutti i campi
                 for (let [key, value] of formData.entries()) {
                     const input = document.createElement('input');
                     input.type = 'hidden';
@@ -1135,7 +1187,6 @@ try {
                     form.appendChild(input);
                 }
                 
-                // Aggiungi il campo modifica_prodotto
                 const modifyInput = document.createElement('input');
                 modifyInput.type = 'hidden';
                 modifyInput.name = 'modifica_prodotto';
@@ -1147,10 +1198,48 @@ try {
             }
         }
         
+        // Delete Functions
+        function showDeleteConfirm(id, nome) {
+            pendingDeleteId = id;
+            const message = document.getElementById('deleteMessage');
+            message.textContent = 'Sei sicuro di voler eliminare "' + nome + '"? Questa azione è irreversibile!';
+            confirmDeleteDialog.classList.add('active');
+        }
+        
+        function closeDeleteConfirm() {
+            confirmDeleteDialog.classList.remove('active');
+            pendingDeleteId = null;
+        }
+        
+        function confirmDelete() {
+            if (pendingDeleteId) {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '';
+                
+                const idInput = document.createElement('input');
+                idInput.type = 'hidden';
+                idInput.name = 'id';
+                idInput.value = pendingDeleteId;
+                form.appendChild(idInput);
+                
+                const deleteInput = document.createElement('input');
+                deleteInput.type = 'hidden';
+                deleteInput.name = 'elimina_prodotto';
+                deleteInput.value = '1';
+                form.appendChild(deleteInput);
+                
+                document.body.appendChild(form);
+                form.submit();
+            }
+        }
+        
         // Close modal on ESC key
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') {
-                if (confirmDialog.classList.contains('active')) {
+                if (confirmDeleteDialog.classList.contains('active')) {
+                    closeDeleteConfirm();
+                } else if (confirmDialog.classList.contains('active')) {
                     closeConfirm();
                 } else if (modal.classList.contains('active')) {
                     closeModal();
@@ -1171,6 +1260,12 @@ try {
             }
         });
         
+        confirmDeleteDialog.addEventListener('click', function(e) {
+            if (e.target === confirmDeleteDialog) {
+                closeDeleteConfirm();
+            }
+        });
+        
         // Search functionality
         const searchInput = document.getElementById('searchInput');
         const clearSearchBtn = document.getElementById('clearSearch');
@@ -1185,18 +1280,15 @@ try {
             searchInput.addEventListener('input', function() {
                 const searchTerm = this.value.toLowerCase().trim();
                 
-                // Mostra/nascondi pulsante clear
                 if (searchTerm.length > 0) {
                     clearSearchBtn.classList.add('active');
                 } else {
                     clearSearchBtn.classList.remove('active');
                 }
                 
-                // Filtra i prodotti
                 filterProducts(searchTerm);
             });
             
-            // Cerca anche quando si preme Enter
             searchInput.addEventListener('keypress', function(e) {
                 if (e.key === 'Enter') {
                     e.preventDefault();
@@ -1212,7 +1304,6 @@ try {
                 const descrizione = card.getAttribute('data-descrizione') || '';
                 const fornitore = card.getAttribute('data-fornitore') || '';
                 
-                // Cerca in tutti i campi
                 const matches = nome.includes(searchTerm) || 
                                descrizione.includes(searchTerm) || 
                                fornitore.includes(searchTerm);
@@ -1225,19 +1316,16 @@ try {
                 }
             });
             
-            // Aggiorna contatori e messaggi
             updateSearchResults(searchTerm, visibleCount);
         }
         
         function updateSearchResults(searchTerm, visibleCount) {
             if (searchTerm === '') {
-                // Nessuna ricerca attiva
                 searchResultsInfo.classList.remove('active');
                 totalCount.textContent = totalProdotti + ' Prodotti';
                 noResults.classList.remove('active');
                 if (prodottiGrid) prodottiGrid.style.display = 'grid';
             } else {
-                // Ricerca attiva
                 searchResultsInfo.classList.add('active');
                 totalCount.textContent = visibleCount + ' di ' + totalProdotti;
                 
@@ -1260,14 +1348,12 @@ try {
             searchInput.focus();
         }
         
-        // Highlight search term (bonus feature)
         searchInput.addEventListener('input', function() {
             const searchTerm = this.value.toLowerCase().trim();
             
             if (searchTerm.length > 0) {
                 prodottiCards.forEach(card => {
                     if (!card.classList.contains('hidden')) {
-                        // Aggiungi un leggero effetto di evidenziazione
                         card.style.transition = 'all 0.3s';
                     }
                 });
