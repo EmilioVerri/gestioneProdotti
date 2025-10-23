@@ -30,14 +30,16 @@ try {
     die('Errore di connessione: ' . $e->getMessage());
 }
 
-// Gestione filtri - SEMPLIFICATI
+// Gestione filtri
 $tipoFiltro = isset($_GET['tipo_filtro']) ? $_GET['tipo_filtro'] : 'tutti';
 $prodottoFiltro = isset($_GET['prodotto_filtro']) ? $_GET['prodotto_filtro'] : '';
+$dataInizio = isset($_GET['data_inizio']) ? $_GET['data_inizio'] : '';
+$dataFine = isset($_GET['data_fine']) ? $_GET['data_fine'] : '';
 $paginaCorrente = isset($_GET['pagina']) ? max(1, intval($_GET['pagina'])) : 1;
 $righePerPagina = 50;
 $offset = ($paginaCorrente - 1) * $righePerPagina;
 
-// Costruisci query con filtri SEMPLIFICATA - ordina sempre per ID decrescente
+// Costruisci query con filtri - ordina sempre per ID decrescente
 $query = "SELECT * FROM storicomovimenti WHERE 1=1";
 $params = [];
 
@@ -54,6 +56,19 @@ if ($prodottoFiltro) {
     $params[] = '%' . $prodottoFiltro . '%';
 }
 
+// Filtro per data inizio
+if ($dataInizio) {
+    // Converti la data dal formato gg/mm/aaaa hh:mm al formato aaaa-mm-gg per il confronto
+    $query .= " AND STR_TO_DATE(SUBSTRING(dataMovimento, 1, 10), '%d/%m/%Y') >= ?";
+    $params[] = $dataInizio;
+}
+
+// Filtro per data fine
+if ($dataFine) {
+    // Converti la data dal formato gg/mm/aaaa hh:mm al formato aaaa-mm-gg per il confronto
+    $query .= " AND STR_TO_DATE(SUBSTRING(dataMovimento, 1, 10), '%d/%m/%Y') <= ?";
+    $params[] = $dataFine;
+}
 // Conta totale righe per paginazione
 $queryCount = str_replace("SELECT *", "SELECT COUNT(*) as total", $query);
 $stmtCount = $pdo->prepare($queryCount);
@@ -102,6 +117,30 @@ try {
 } catch (PDOException $e) {
     $totaleEntrate = 0;
     $totaleUscite = 0;
+}
+
+// Funzione helper per costruire URL con parametri
+function buildUrlParams($pagina = null) {
+    global $tipoFiltro, $prodottoFiltro, $dataInizio, $dataFine;
+    $params = [];
+    
+    if ($pagina !== null) {
+        $params[] = 'pagina=' . $pagina;
+    }
+    if ($tipoFiltro !== 'tutti') {
+        $params[] = 'tipo_filtro=' . urlencode($tipoFiltro);
+    }
+    if ($prodottoFiltro) {
+        $params[] = 'prodotto_filtro=' . urlencode($prodottoFiltro);
+    }
+    if ($dataInizio) {
+        $params[] = 'data_inizio=' . urlencode($dataInizio);
+    }
+    if ($dataFine) {
+        $params[] = 'data_fine=' . urlencode($dataFine);
+    }
+    
+    return !empty($params) ? '?' . implode('&', $params) : '';
 }
 ?>
 <!DOCTYPE html>
@@ -788,9 +827,6 @@ try {
         <div class="page-header">
             <h2>Storico Movimenti Magazzino</h2>
             <p>Visualizza tutti i movimenti ordinati dal più recente (50 righe per pagina)
-            <?php if (!isset($_GET['debug'])): ?>
-                - <a href="?debug=1" style="color: #666; text-decoration: underline;">Modalità Debug</a>
-            <?php endif; ?>
             </p>
         </div>
         
@@ -838,6 +874,16 @@ try {
                         <label for="prodotto_filtro">Cerca Prodotto</label>
                         <input type="text" id="prodotto_filtro" name="prodotto_filtro" placeholder="Nome prodotto..." value="<?php echo htmlspecialchars($prodottoFiltro); ?>">
                     </div>
+                    
+                    <div class="filter-group">
+                        <label for="data_inizio">📅 Data Inizio</label>
+                        <input type="date" id="data_inizio" name="data_inizio" value="<?php echo htmlspecialchars($dataInizio); ?>">
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="data_fine">📅 Data Fine</label>
+                        <input type="date" id="data_fine" name="data_fine" value="<?php echo htmlspecialchars($dataFine); ?>">
+                    </div>
                 </div>
                 
                 <div class="filter-buttons">
@@ -869,7 +915,7 @@ try {
                             </tr>
                         </thead>
                         <tbody>
-                         <?php foreach ($movimenti as $mov): ?>
+                            <?php foreach ($movimenti as $mov): ?>
                                 <?php 
                                 $isUscita = (strpos($mov['movimento'], '-') === 0);
                                 $movimentoValue = abs(intval($mov['movimento']));
@@ -897,7 +943,7 @@ try {
                 <?php if ($totalePagine > 1): ?>
                     <div class="pagination">
                         <?php if ($paginaCorrente > 1): ?>
-                            <a href="?pagina=<?php echo $paginaCorrente - 1; ?><?php echo $tipoFiltro !== 'tutti' ? '&tipo_filtro=' . $tipoFiltro : ''; ?><?php echo $prodottoFiltro ? '&prodotto_filtro=' . urlencode($prodottoFiltro) : ''; ?>" class="pagination-btn">
+                            <a href="<?php echo buildUrlParams($paginaCorrente - 1); ?>" class="pagination-btn">
                                 ← Precedente
                             </a>
                         <?php else: ?>
@@ -911,14 +957,14 @@ try {
                         
                         if ($start > 1) {
                             ?>
-                            <a href="?pagina=1<?php echo $tipoFiltro !== 'tutti' ? '&tipo_filtro=' . $tipoFiltro : ''; ?><?php echo $prodottoFiltro ? '&prodotto_filtro=' . urlencode($prodottoFiltro) : ''; ?>" class="pagination-btn">1</a>
+                            <a href="<?php echo buildUrlParams(1); ?>" class="pagination-btn">1</a>
                             <?php if ($start > 2): ?>
                                 <span class="pagination-info">...</span>
                             <?php endif;
                         }
                         
                         for ($i = $start; $i <= $end; $i++): ?>
-                            <a href="?pagina=<?php echo $i; ?><?php echo $tipoFiltro !== 'tutti' ? '&tipo_filtro=' . $tipoFiltro : ''; ?><?php echo $prodottoFiltro ? '&prodotto_filtro=' . urlencode($prodottoFiltro) : ''; ?>" 
+                            <a href="<?php echo buildUrlParams($i); ?>" 
                                class="pagination-btn <?php echo $i === $paginaCorrente ? 'active' : ''; ?>">
                                 <?php echo $i; ?>
                             </a>
@@ -928,7 +974,7 @@ try {
                             if ($end < $totalePagine - 1): ?>
                                 <span class="pagination-info">...</span>
                             <?php endif; ?>
-                            <a href="?pagina=<?php echo $totalePagine; ?><?php echo $tipoFiltro !== 'tutti' ? '&tipo_filtro=' . $tipoFiltro : ''; ?><?php echo $prodottoFiltro ? '&prodotto_filtro=' . urlencode($prodottoFiltro) : ''; ?>" class="pagination-btn"><?php echo $totalePagine; ?></a>
+                            <a href="<?php echo buildUrlParams($totalePagine); ?>" class="pagination-btn"><?php echo $totalePagine; ?></a>
                         <?php } ?>
                         
                         <span class="pagination-info">
@@ -936,7 +982,7 @@ try {
                         </span>
                         
                         <?php if ($paginaCorrente < $totalePagine): ?>
-                            <a href="?pagina=<?php echo $paginaCorrente + 1; ?><?php echo $tipoFiltro !== 'tutti' ? '&tipo_filtro=' . $tipoFiltro : ''; ?><?php echo $prodottoFiltro ? '&prodotto_filtro=' . urlencode($prodottoFiltro) : ''; ?>" class="pagination-btn">
+                            <a href="<?php echo buildUrlParams($paginaCorrente + 1); ?>" class="pagination-btn">
                                 Successiva →
                             </a>
                         <?php else: ?>
@@ -1032,6 +1078,16 @@ try {
             
             <?php if ($prodottoFiltro): ?>
             doc.text('Prodotto: <?php echo htmlspecialchars($prodottoFiltro); ?>', 14, yPos);
+            yPos += 6;
+            <?php endif; ?>
+            
+            <?php if ($dataInizio): ?>
+            doc.text('Data Inizio: <?php echo htmlspecialchars($dataInizio); ?>', 14, yPos);
+            yPos += 6;
+            <?php endif; ?>
+            
+            <?php if ($dataFine): ?>
+            doc.text('Data Fine: <?php echo htmlspecialchars($dataFine); ?>', 14, yPos);
             yPos += 6;
             <?php endif; ?>
             
