@@ -25,15 +25,42 @@ $db_password = '';
 
 $errore = '';
 $successo = '';
+$errore_prod = '';
+$successo_prod = '';
+
+try {
+    $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $db_username, $db_password);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+} catch (PDOException $e) {
+    die('Errore di connessione: ' . $e->getMessage());
+}
+
+// Gestione inserimento prodotti (SPOSTATA IN CIMA)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['aggiungi_prodotto'])) {
+    $nome = trim($_POST['nome']);
+    $descrizione = trim($_POST['descrizione']);
+    $quantita = intval($_POST['quantita']);
+    $fornitore = trim($_POST['fornitore']);
+    
+    if (!empty($nome) && !empty($descrizione) && $quantita >= 0 && !empty($fornitore)) {
+        try {
+            $stmt = $pdo->prepare("INSERT INTO prodotti (nome, descrizione, quantita, allarme, fornitore) VALUES (?, ?, ?, ?, ?)");
+            $stmt->execute([$nome, $descrizione, $quantita, 'nessuno', $fornitore]);
+            
+            $successo_prod = 'Prodotto aggiunto con successo!';
+        } catch (PDOException $e) {
+            $errore_prod = 'Errore durante l\'inserimento: ' . $e->getMessage();
+        }
+    } else {
+        $errore_prod = 'Compila tutti i campi correttamente';
+    }
+}
 
 // Gestione eliminazione prodotto
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['elimina_prodotto'])) {
     $id = intval($_POST['id']);
     
     try {
-        $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $db_username, $db_password);
-        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-        
         $stmt = $pdo->prepare("DELETE FROM prodotti WHERE id = ?");
         $stmt->execute([$id]);
         
@@ -53,9 +80,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['modifica_prodotto']))
     
     if (!empty($nome) && !empty($descrizione) && $quantita >= 0 && !empty($fornitore)) {
         try {
-            $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $db_username, $db_password);
-            $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-            
             $stmt = $pdo->prepare("UPDATE prodotti SET nome = ?, descrizione = ?, quantita = ?, fornitore = ? WHERE id = ?");
             $stmt->execute([$nome, $descrizione, $quantita, $fornitore, $id]);
             
@@ -71,9 +95,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['modifica_prodotto']))
 // Recupera tutti i prodotti
 $prodotti = [];
 try {
-    $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $db_username, $db_password);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    
     $stmt = $pdo->query("SELECT * FROM prodotti ORDER BY id DESC");
     $prodotti = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
@@ -411,6 +432,126 @@ try {
             display: block;
         }
         
+        /* Sezione Inserimento Prodotto */
+        .insert-section {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+            animation: fadeIn 0.5s;
+        }
+        
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        
+        .section-icon {
+            font-size: 32px;
+        }
+        
+        .section-header h3 {
+            color: #1a1a1a;
+            font-size: 22px;
+        }
+        
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group.full-width {
+            grid-column: 1 / -1;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #1a1a1a;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        
+        input[type="text"],
+        input[type="number"],
+        textarea {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 5px;
+            font-size: 15px;
+            transition: all 0.3s;
+            background: #f9f9f9;
+            font-family: inherit;
+        }
+        
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+        
+        input:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #1a1a1a;
+            background: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        
+        button[type="submit"] {
+            background: #1a1a1a;
+            color: white;
+            padding: 14px 30px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+        
+        button[type="submit"]:hover {
+            background: #000;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+        }
+        
+        button[type="submit"]:active {
+            transform: translateY(0);
+        }
+        
+        .messaggio {
+            padding: 12px 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            animation: fadeIn 0.5s;
+            font-size: 14px;
+        }
+        
+        .errore {
+            background: #ffe6e6;
+            color: #cc0000;
+            border: 1px solid #ff9999;
+        }
+        
+        .successo {
+            background: #e6ffe6;
+            color: #006600;
+            border: 1px solid #99ff99;
+        }
+        
         .prodotti-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
@@ -615,44 +756,6 @@ try {
         
         .modal-body {
             padding: 25px;
-        }
-        
-        .form-group {
-            margin-bottom: 20px;
-        }
-        
-        label {
-            display: block;
-            margin-bottom: 8px;
-            color: #1a1a1a;
-            font-weight: 500;
-            font-size: 14px;
-        }
-        
-        input[type="text"],
-        input[type="number"],
-        textarea {
-            width: 100%;
-            padding: 12px 15px;
-            border: 2px solid #e0e0e0;
-            border-radius: 5px;
-            font-size: 15px;
-            transition: all 0.3s;
-            background: #f9f9f9;
-            font-family: inherit;
-        }
-        
-        textarea {
-            resize: vertical;
-            min-height: 100px;
-        }
-        
-        input:focus,
-        textarea:focus {
-            outline: none;
-            border-color: #1a1a1a;
-            background: white;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
         
         .modal-footer {
@@ -888,6 +991,10 @@ try {
             .search-container {
                 width: 100%;
             }
+            
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
@@ -939,8 +1046,6 @@ try {
         </div>
         
         <?php include './widget/menu.php'; ?>
-        
-       
     </div>
     
     <!-- Navbar -->
@@ -957,6 +1062,45 @@ try {
     </nav>
     
     <div class="container">
+        <!-- Sezione Inserimento Prodotto (SPOSTATA IN CIMA) -->
+        <div class="insert-section">
+            <div class="section-header">
+                <span class="section-icon">➕</span>
+                <h3>Inserimento Nuovo Prodotto</h3>
+            </div>
+            
+            <?php if ($errore_prod): ?>
+                <div class="messaggio errore"><?php echo htmlspecialchars($errore_prod); ?></div>
+            <?php endif; ?>
+            
+            <form method="POST" action="" id="formProdotto">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="nome">Nome Prodotto *</label>
+                        <input type="text" id="nome" name="nome" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="quantita">Quantità *</label>
+                        <input type="number" id="quantita" name="quantita" min="0" value="0" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="fornitore">Fornitore *</label>
+                        <input type="text" id="fornitore" name="fornitore" required>
+                    </div>
+                    
+                    <div class="form-group full-width">
+                        <label for="descrizione">Descrizione *</label>
+                        <textarea id="descrizione" name="descrizione" required></textarea>
+                    </div>
+                </div>
+                
+                <button type="submit" name="aggiungi_prodotto">Aggiungi Prodotto</button>
+            </form>
+        </div>
+        
+        <!-- Sezione Elenco Prodotti -->
         <div class="page-header">
             <div class="header-top">
                 <h2>Elenco Prodotti</h2>
@@ -980,7 +1124,7 @@ try {
             <div class="empty-state">
                 <div class="empty-icon">📦</div>
                 <div class="empty-title">Nessun prodotto trovato</div>
-                <div class="empty-message">Inizia ad aggiungere prodotti dalla pagina Controllo</div>
+                <div class="empty-message">Aggiungi il tuo primo prodotto utilizzando il form sopra</div>
             </div>
         <?php else: ?>
             <div class="no-results" id="noResults">
@@ -1051,7 +1195,8 @@ try {
                     </div>
                     
                     <div class="form-group">
-                        <input type="number" id="edit_quantita" name="quantita" min="0" style="display:none">
+                        <label for="edit_quantita">Quantità *</label>
+                        <input type="number" id="edit_quantita" name="quantita" min="0" required>
                     </div>
                     
                     <div class="form-group">
@@ -1105,6 +1250,17 @@ try {
         
         <?php if ($successo): ?>
             showPopup('success', 'Successo!', '<?php echo addslashes($successo); ?>');
+        <?php endif; ?>
+        
+        <?php if ($successo_prod): ?>
+            showPopup('success', 'Prodotto Aggiunto!', '<?php echo addslashes($successo_prod); ?>');
+        <?php endif; ?>
+        
+        // Reset form dopo successo inserimento
+        <?php if ($successo_prod): ?>
+            setTimeout(() => {
+                document.getElementById('formProdotto').reset();
+            }, 100);
         <?php endif; ?>
         
         // Toggle Sidebar
@@ -1346,16 +1502,36 @@ try {
             searchInput.focus();
         }
         
-        searchInput.addEventListener('input', function() {
-            const searchTerm = this.value.toLowerCase().trim();
+        // Validazione form prodotto
+        document.getElementById('formProdotto').addEventListener('submit', function(e) {
+            const nome = document.getElementById('nome').value.trim();
+            const descrizione = document.getElementById('descrizione').value.trim();
+            const quantita = document.getElementById('quantita').value;
+            const fornitore = document.getElementById('fornitore').value.trim();
             
-            if (searchTerm.length > 0) {
-                prodottiCards.forEach(card => {
-                    if (!card.classList.contains('hidden')) {
-                        card.style.transition = 'all 0.3s';
-                    }
-                });
+            if (!nome || !descrizione || !fornitore) {
+                e.preventDefault();
+                alert('Compila tutti i campi obbligatori!');
+                return;
             }
+            
+            if (quantita < 0) {
+                e.preventDefault();
+                alert('La quantità non può essere negativa!');
+                return;
+            }
+        });
+        
+        // Animazione input
+        const inputs = document.querySelectorAll('input, textarea');
+        inputs.forEach(input => {
+            input.addEventListener('focus', function() {
+                this.parentElement.style.transform = 'translateX(3px)';
+                this.parentElement.style.transition = 'transform 0.2s';
+            });
+            input.addEventListener('blur', function() {
+                this.parentElement.style.transform = 'translateX(0)';
+            });
         });
     </script>
 </body>

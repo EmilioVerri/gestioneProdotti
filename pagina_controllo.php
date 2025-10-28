@@ -7,6 +7,26 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
+
+$host = 'localhost';
+$dbname = 'gestioneprodotti';
+$db_username = 'root';
+$db_password = '';
+
+$pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $db_username, $db_password);
+
+// Verifica se l'utente è admin
+$stmt = $pdo->prepare("SELECT privilegi FROM login WHERE id = ?");
+$stmt->execute([$_SESSION['user_id']]);
+$privilegi = $stmt->fetchColumn();
+
+// Se non è admin, reindirizza alla homepage
+if ($privilegi !== 'admin') {
+    header('Location: dashboard.php');
+    exit;
+}
+
+
 // Gestione logout
 if (isset($_GET['logout'])) {
     session_destroy();
@@ -25,8 +45,6 @@ $db_password = '';
 
 $errore_reg = '';
 $successo_reg = '';
-$errore_prod = '';
-$successo_prod = '';
 $errore_gestione = '';
 $successo_gestione = '';
 
@@ -37,31 +55,48 @@ try {
     die('Errore di connessione: ' . $e->getMessage());
 }
 
-// Gestione CAMBIO PASSWORD
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cambia_password'])) {
+// Gestione MODIFICA UTENTE (password e privilegi)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['modifica_utente'])) {
     $user_id = intval($_POST['user_id']);
     $nuova_pass = $_POST['nuova_password'];
     $conferma_nuova = $_POST['conferma_nuova_password'];
+    $nuovo_privilegio = $_POST['privilegi'];
     
-    if (!empty($nuova_pass) && !empty($conferma_nuova)) {
-        if ($nuova_pass === $conferma_nuova) {
-            if (strlen($nuova_pass) >= 6) {
-                try {
-                    $password_hash = password_hash($nuova_pass, PASSWORD_DEFAULT);
-                    $stmt = $pdo->prepare("UPDATE login SET password = ? WHERE id = ?");
-                    $stmt->execute([$password_hash, $user_id]);
-                    $successo_gestione = 'Password modificata con successo!';
-                } catch (PDOException $e) {
-                    $errore_gestione = 'Errore durante la modifica: ' . $e->getMessage();
+    // Valida privilegi
+    if (!in_array($nuovo_privilegio, ['admin', 'base'])) {
+        $errore_gestione = 'Privilegio non valido';
+    } else {
+        $modifiche_effettuate = false;
+        
+        try {
+            // Modifica privilegi
+            $stmt = $pdo->prepare("UPDATE login SET privilegi = ? WHERE id = ?");
+            $stmt->execute([$nuovo_privilegio, $user_id]);
+            $modifiche_effettuate = true;
+            
+            // Modifica password se fornita
+            if (!empty($nuova_pass) && !empty($conferma_nuova)) {
+                if ($nuova_pass === $conferma_nuova) {
+                    if (strlen($nuova_pass) >= 6) {
+                        $password_hash = password_hash($nuova_pass, PASSWORD_DEFAULT);
+                        $stmt = $pdo->prepare("UPDATE login SET password = ? WHERE id = ?");
+                        $stmt->execute([$password_hash, $user_id]);
+                        $successo_gestione = 'Utente modificato con successo (privilegi e password)!';
+                    } else {
+                        $errore_gestione = 'La password deve essere lunga almeno 6 caratteri';
+                        $modifiche_effettuate = false;
+                    }
+                } else {
+                    $errore_gestione = 'Le password non coincidono';
+                    $modifiche_effettuate = false;
                 }
             } else {
-                $errore_gestione = 'La password deve essere lunga almeno 6 caratteri';
+                $successo_gestione = 'Privilegi modificati con successo!';
             }
-        } else {
-            $errore_gestione = 'Le password non coincidono';
+            
+        } catch (PDOException $e) {
+            $errore_gestione = 'Errore durante la modifica: ' . $e->getMessage();
         }
-    } else {
-        $errore_gestione = 'Compila tutti i campi per cambiare la password';
     }
 }
 
@@ -115,27 +150,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registrati'])) {
         }
     } else {
         $errore_reg = 'Compila tutti i campi';
-    }
-}
-
-// Gestione inserimento prodotti
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['aggiungi_prodotto'])) {
-    $nome = trim($_POST['nome']);
-    $descrizione = trim($_POST['descrizione']);
-    $quantita = intval($_POST['quantita']);
-    $fornitore = trim($_POST['fornitore']);
-    
-    if (!empty($nome) && !empty($descrizione) && $quantita >= 0 && !empty($fornitore)) {
-        try {
-            $stmt = $pdo->prepare("INSERT INTO prodotti (nome, descrizione, quantita, allarme, fornitore) VALUES (?, ?, ?, ?, ?)");
-            $stmt->execute([$nome, $descrizione, $quantita, 'nessuno', $fornitore]);
-            
-            $successo_prod = 'Prodotto aggiunto con successo!';
-        } catch (PDOException $e) {
-            $errore_prod = 'Errore durante l\'inserimento: ' . $e->getMessage();
-        }
-    } else {
-        $errore_prod = 'Compila tutti i campi correttamente';
     }
 }
 
@@ -878,33 +892,42 @@ try {
         <button class="popup-close" onclick="closePopup()">×</button>
     </div>
     
-    <!-- Modal Cambio Password -->
-    <div class="modal" id="modalPassword">
+    <!-- Modal Modifica Utente -->
+    <div class="modal" id="modalModifica">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>🔑 Cambia Password</h3>
-                <button class="modal-close" onclick="closeModal('modalPassword')">×</button>
+                <h3>✏️ Modifica Utente</h3>
+                <button class="modal-close" onclick="closeModal('modalModifica')">×</button>
             </div>
-            <form method="POST" id="formCambioPassword">
-                <input type="hidden" name="user_id" id="change_user_id">
+            <form method="POST" id="formModificaUtente">
+                <input type="hidden" name="user_id" id="edit_user_id">
                 <p style="margin-bottom: 20px; color: #666;">
-                    Modifica password per: <strong id="change_username"></strong>
+                    Modifica utente: <strong id="edit_username"></strong>
                 </p>
+                
                 <div class="form-group">
-                    <label for="nuova_password">Nuova Password</label>
-                    <input type="password" id="nuova_password" name="nuova_password" required minlength="6">
+                    <label for="edit_privilegi">Privilegi *</label>
+                    <select id="edit_privilegi" name="privilegi" required>
+                        <option value="base">Base</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="nuova_password">Nuova Password (opzionale)</label>
+                    <input type="password" id="nuova_password" name="nuova_password" minlength="6">
                     <div class="password-strength">
                         <div class="password-strength-bar" id="strengthBarModal"></div>
                     </div>
-                    <div class="requisiti">Minimo 6 caratteri</div>
+                    <div class="requisiti">Lascia vuoto per non modificare la password</div>
                 </div>
                 <div class="form-group">
                     <label for="conferma_nuova_password">Conferma Nuova Password</label>
-                    <input type="password" id="conferma_nuova_password" name="conferma_nuova_password" required minlength="6">
+                    <input type="password" id="conferma_nuova_password" name="conferma_nuova_password" minlength="6">
                 </div>
                 <div class="modal-buttons">
-                    <button type="button" class="btn-cancel" onclick="closeModal('modalPassword')">Annulla</button>
-                    <button type="submit" class="btn-confirm" name="cambia_password">Cambia Password</button>
+                    <button type="button" class="btn-cancel" onclick="closeModal('modalModifica')">Annulla</button>
+                    <button type="submit" class="btn-confirm" name="modifica_utente">Salva Modifiche</button>
                 </div>
             </form>
         </div>
@@ -959,7 +982,7 @@ try {
     <div class="container">
         <div class="page-header">
             <h2>Pannello di Controllo</h2>
-            <p>Gestisci utenti e prodotti del sistema da questa pagina</p>
+            <p>Gestisci utenti del sistema da questa pagina</p>
         </div>
         
         <div class="sections-container">
@@ -1002,8 +1025,8 @@ try {
                                         </td>
                                         <td>
                                             <button class="btn-action btn-edit" 
-                                                    onclick="openPasswordModal(<?php echo $utente['id']; ?>, '<?php echo htmlspecialchars($utente['username'], ENT_QUOTES); ?>')">
-                                                🔑 Cambia Password
+                                                    onclick="openModificaModal(<?php echo $utente['id']; ?>, '<?php echo htmlspecialchars($utente['username'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($utente['privilegi'], ENT_QUOTES); ?>')">
+                                                ✏️ Modifica
                                             </button>
                                             <button class="btn-action btn-delete" 
                                                     onclick="openDeleteModal(<?php echo $utente['id']; ?>, '<?php echo htmlspecialchars($utente['username'], ENT_QUOTES); ?>')"
@@ -1019,44 +1042,6 @@ try {
                 <?php else: ?>
                     <p style="text-align: center; padding: 40px; color: #999;">Nessun utente trovato</p>
                 <?php endif; ?>
-            </div>
-            
-            <!-- Sezione Inserimento Prodotti -->
-            <div class="section-card">
-                <div class="section-header">
-                    <span class="section-icon">📦</span>
-                    <h3>Inserimento Nuovo Prodotto</h3>
-                </div>
-                
-                <?php if ($errore_prod): ?>
-                    <div class="messaggio errore"><?php echo htmlspecialchars($errore_prod); ?></div>
-                <?php endif; ?>
-                
-                <form method="POST" action="" id="formProdotto">
-                    <div class="form-grid">
-                        <div class="form-group">
-                            <label for="nome">Nome Prodotto *</label>
-                            <input type="text" id="nome" name="nome" required>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="quantita">Quantità *</label>
-                            <input type="number" id="quantita" name="quantita" min="0" value="0" required>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="fornitore">Fornitore *</label>
-                            <input type="text" id="fornitore" name="fornitore" required>
-                        </div>
-                        
-                        <div class="form-group full-width">
-                            <label for="descrizione">Descrizione *</label>
-                            <textarea id="descrizione" name="descrizione" required></textarea>
-                        </div>
-                    </div>
-                    
-                    <button type="submit" name="aggiungi_prodotto">Aggiungi Prodotto</button>
-                </form>
             </div>
             
             <!-- Sezione Registrazione Utenti -->
@@ -1101,10 +1086,11 @@ try {
     
     <script>
         // Funzioni Modal
-        function openPasswordModal(userId, username) {
-            document.getElementById('change_user_id').value = userId;
-            document.getElementById('change_username').textContent = username;
-            document.getElementById('modalPassword').classList.add('show');
+        function openModificaModal(userId, username, privilegi) {
+            document.getElementById('edit_user_id').value = userId;
+            document.getElementById('edit_username').textContent = username;
+            document.getElementById('edit_privilegi').value = privilegi;
+            document.getElementById('modalModifica').classList.add('show');
             document.getElementById('nuova_password').value = '';
             document.getElementById('conferma_nuova_password').value = '';
             document.getElementById('strengthBarModal').className = 'password-strength-bar';
@@ -1164,10 +1150,6 @@ try {
         }
         
         // Show popup on page load
-        <?php if ($successo_prod): ?>
-            showPopup('success', 'Prodotto Aggiunto!', '<?php echo addslashes($successo_prod); ?>');
-        <?php endif; ?>
-        
         <?php if ($successo_reg): ?>
             showPopup('success', 'Utente Registrato!', '<?php echo addslashes($successo_reg); ?>');
         <?php endif; ?>
@@ -1231,7 +1213,7 @@ try {
             }
         });
         
-        // Password strength per modal cambio password
+        // Password strength per modal modifica
         const nuovaPasswordInput = document.getElementById('nuova_password');
         const strengthBarModal = document.getElementById('strengthBarModal');
         const confermaNuovaInput = document.getElementById('conferma_nuova_password');
@@ -1305,46 +1287,29 @@ try {
             }
         });
         
-        // Validazione form cambio password
-        document.getElementById('formCambioPassword').addEventListener('submit', function(e) {
+        // Validazione form modifica utente
+        document.getElementById('formModificaUtente').addEventListener('submit', function(e) {
             const nuovaPass = nuovaPasswordInput.value;
             const confermaNuova = confermaNuovaInput.value;
             
-            if (nuovaPass.length < 6) {
-                e.preventDefault();
-                alert('La password deve essere di almeno 6 caratteri!');
-                return;
-            }
-            
-            if (nuovaPass !== confermaNuova) {
-                e.preventDefault();
-                alert('Le password non coincidono!');
-                return;
-            }
-        });
-        
-        // Validazione form prodotto
-        document.getElementById('formProdotto').addEventListener('submit', function(e) {
-            const nome = document.getElementById('nome').value.trim();
-            const descrizione = document.getElementById('descrizione').value.trim();
-            const quantita = document.getElementById('quantita').value;
-            const fornitore = document.getElementById('fornitore').value.trim();
-            
-            if (!nome || !descrizione || !fornitore) {
-                e.preventDefault();
-                alert('Compila tutti i campi obbligatori!');
-                return;
-            }
-            
-            if (quantita < 0) {
-                e.preventDefault();
-                alert('La quantità non può essere negativa!');
-                return;
+            // Se è stata inserita una password, valida
+            if (nuovaPass.length > 0 || confermaNuova.length > 0) {
+                if (nuovaPass.length < 6) {
+                    e.preventDefault();
+                    alert('La password deve essere di almeno 6 caratteri!');
+                    return;
+                }
+                
+                if (nuovaPass !== confermaNuova) {
+                    e.preventDefault();
+                    alert('Le password non coincidono!');
+                    return;
+                }
             }
         });
         
         // Animazione input
-        const inputs = document.querySelectorAll('input, textarea');
+        const inputs = document.querySelectorAll('input, textarea, select');
         inputs.forEach(input => {
             input.addEventListener('focus', function() {
                 this.parentElement.style.transform = 'translateX(3px)';
@@ -1356,12 +1321,6 @@ try {
         });
         
         // Reset form dopo successo
-        <?php if ($successo_prod): ?>
-            setTimeout(() => {
-                document.getElementById('formProdotto').reset();
-            }, 100);
-        <?php endif; ?>
-        
         <?php if ($successo_reg): ?>
             setTimeout(() => {
                 document.getElementById('formRegistrazione').reset();
@@ -1371,7 +1330,7 @@ try {
         
         // Chiudi modal dopo successo
         <?php if ($successo_gestione): ?>
-            closeModal('modalPassword');
+            closeModal('modalModifica');
             closeModal('modalDelete');
         <?php endif; ?>
     </script>
