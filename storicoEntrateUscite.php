@@ -911,6 +911,7 @@ function buildUrlParams($pagina = null) {
                                 <th>Movimento</th>
                                 <th>Utente</th>
                                 <th>N. Bolla</th>
+                                <th>N. Dato</th>
                                 <th>Descrizione</th>
                             </tr>
                         </thead>
@@ -932,6 +933,7 @@ function buildUrlParams($pagina = null) {
                                     </td>
                                     <td><?php echo htmlspecialchars($mov['idUtente']); ?></td>
                                     <td><?php echo htmlspecialchars($mov['bollaNumero'] ?: '-'); ?></td>
+                                    <td><?php echo htmlspecialchars($mov['datoNumero'] ?: '-'); ?></td>
                                     <td><?php echo htmlspecialchars($mov['descrizione'] ?: '-'); ?></td>
                                 </tr>
                             <?php endforeach; ?>
@@ -1118,13 +1120,14 @@ function buildUrlParams($pagina = null) {
                     movimento,
                     mov.idUtente,
                     mov.bollaNumero || '-',
+                    mov.datoNumero || '-',
                     (mov.descrizione || '-').substring(0, 25)
                 ];
             });
             
             doc.autoTable({
                 startY: yPos,
-                head: [['ID', 'Data/Ora', 'Prodotto', 'Tipo', 'Qta', 'Utente', 'Bolla', 'Descrizione']],
+                head: [['ID', 'Data/Ora', 'Prodotto', 'Tipo', 'Qta', 'Utente', 'Bolla', 'datoNumero', 'Descrizione']],
                 body: tableData,
                 styles: {
                     fontSize: 7,

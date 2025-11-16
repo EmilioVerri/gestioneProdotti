@@ -40,6 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registra_movimento'])
     $quantitaMovimento = intval($_POST['quantita_movimento']);
     $descrizioneMovimento = trim($_POST['descrizione_movimento']);
     $numeroBolla = trim($_POST['numero_bolla']);
+    $numeroDato = trim($_POST['numero_dato']);
     
     if ($idProdotto > 0 && $quantitaMovimento > 0) {
         try {
@@ -68,14 +69,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registra_movimento'])
                     
                     // Inserisci il movimento nello storico
                     $dataMovimento = date('d/m/Y H:i');
-                    $stmt = $pdo->prepare("INSERT INTO storicomovimenti (idProdotto, movimento, idUtente, descrizione, dataMovimento, bollaNumero) VALUES (?, ?, ?, ?, ?, ?)");
+                    $stmt = $pdo->prepare("INSERT INTO storicomovimenti (idProdotto, movimento, idUtente, descrizione, dataMovimento, bollaNumero, datoNumero) VALUES (?, ?, ?, ?, ?, ?,?)");
                     $stmt->execute([
                         $prodotto['nome'],
                         $movimento,
                         $username,
                         $descrizioneMovimento,
                         $dataMovimento,
-                        $numeroBolla
+                        $numeroBolla,
+                        $numeroDato
                     ]);
                     
                     $tipoMsg = ($tipoMovimento === 'entrata') ? 'Entrata' : 'Uscita';
@@ -1373,6 +1375,12 @@ $prodottiAllarme = array_filter($prodotti, function($p) {
                         <label for="numero_bolla">Numero Bolla</label>
                         <input type="text" id="numero_bolla" name="numero_bolla" placeholder="Opzionale">
                     </div>
+
+                                        <!-- Numero dato -->
+                    <div class="form-group">
+                        <label for="numero_dato">Numero Dato</label>
+                        <input type="text" id="numero_dato" name="numero_dato" placeholder="Opzionale">
+                    </div>
                     
                     <!-- Descrizione movimento -->
                     <div class="form-group full-width">
@@ -1501,6 +1509,12 @@ $prodottiAllarme = array_filter($prodotti, function($p) {
                             <label for="quick_numero_bolla">Numero Bolla</label>
                             <input type="text" id="quick_numero_bolla" name="numero_bolla" placeholder="Opzionale">
                         </div>
+                               <div class="form-group">
+                            <label for="quick_numero_dato">Numero Dato</label>
+                            <input type="text" id="quick_numero_dato" name="numero_dato" placeholder="Opzionale">
+                        </div>
+
+                        
                         
                         <div class="form-group">
                             <label for="quick_descrizione_movimento">Descrizione</label>
@@ -1644,7 +1658,7 @@ $prodottiAllarme = array_filter($prodotti, function($p) {
         const confirmDialog = document.getElementById('confirmDialog');
         let pendingForm = false;
         
-        function showConfirm(tipoMovimento, nomeProdotto, quantita, quantitaAttuale, numeroBolla) {
+        function showConfirm(tipoMovimento, nomeProdotto, quantita, quantitaAttuale, numeroBolla, numeroDato) {
             const confirmIcon = document.getElementById('confirmIcon');
             const confirmIconWrapper = document.getElementById('confirmIconWrapper');
             const confirmTitle = document.getElementById('confirmTitle');
@@ -1699,6 +1713,15 @@ $prodottiAllarme = array_filter($prodotti, function($p) {
                     <div class="confirm-detail-row">
                         <span class="confirm-detail-label">Numero Bolla:</span>
                         <span class="confirm-detail-value">${numeroBolla}</span>
+                    </div>
+                `;
+            }
+
+                        if (numeroDato && numeroDato.trim() !== '') {
+                detailsHTML += `
+                    <div class="confirm-detail-row">
+                        <span class="confirm-detail-label">Numero Dato:</span>
+                        <span class="confirm-detail-value">${numeroDato}</span>
                     </div>
                 `;
             }
@@ -1760,6 +1783,7 @@ $prodottiAllarme = array_filter($prodotti, function($p) {
             const quantita = parseInt(quantitaInput.value);
             const tipoMovimento = document.querySelector('input[name="tipo_movimento"]:checked').value;
             const numeroBolla = document.getElementById('numero_bolla').value;
+            const numeroDato = document.getElementById('numero_dato').value;
             
             if (!prodotto) {
                 alert('Seleziona un prodotto!');
@@ -1910,6 +1934,7 @@ $prodottiAllarme = array_filter($prodotti, function($p) {
             
             // Salva i dati prima di chiudere il modal
             const numeroBolla = document.getElementById('quick_numero_bolla').value;
+            const numeroDato = document.getElementById('quick_numero_dato').value;
             const tipoMovimento = currentQuickType;
             const nomeProdotto = currentQuickProduct.nome;
             const quantitaAttuale = currentQuickProduct.quantita;
