@@ -1372,13 +1372,13 @@ $prodottiAllarme = array_filter($prodotti, function($p) {
                     
                     <!-- Numero bolla -->
                     <div class="form-group">
-                        <label for="numero_bolla">Numero Bolla</label>
+                        <label for="numero_bolla">NUMERO ISTA TAGLIO</label>
                         <input type="text" id="numero_bolla" name="numero_bolla" placeholder="Opzionale">
                     </div>
 
                                         <!-- Numero dato -->
                     <div class="form-group">
-                        <label for="numero_dato">Numero Dato</label>
+                        <label for="numero_dato">NUMERO OFFERTA</label>
                         <input type="text" id="numero_dato" name="numero_dato" placeholder="Opzionale">
                     </div>
                     
@@ -1506,11 +1506,11 @@ $prodottiAllarme = array_filter($prodotti, function($p) {
                         </div>
                         
                         <div class="form-group">
-                            <label for="quick_numero_bolla">Numero Bolla</label>
+                            <label for="quick_numero_bolla">NUMERO ISTA TAGLIO</label>
                             <input type="text" id="quick_numero_bolla" name="numero_bolla" placeholder="Opzionale">
                         </div>
                                <div class="form-group">
-                            <label for="quick_numero_dato">Numero Dato</label>
+                            <label for="quick_numero_dato">NUMERO OFFERTA</label>
                             <input type="text" id="quick_numero_dato" name="numero_dato" placeholder="Opzionale">
                         </div>
 

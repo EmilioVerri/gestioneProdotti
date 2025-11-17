@@ -910,8 +910,8 @@ function buildUrlParams($pagina = null) {
                                 <th>Prodotto</th>
                                 <th>Movimento</th>
                                 <th>Utente</th>
-                                <th>N. Bolla</th>
-                                <th>N. Dato</th>
+                                <th>NUMERO ISTA TAGLIO</th>
+                                <th>NUMERO OFFERTA</th>
                                 <th>Descrizione</th>
                             </tr>
                         </thead>
