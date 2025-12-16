@@ -1,13 +1,11 @@
 <?php
 session_start();
 
-// Verifica se l'utente è loggato
 if (!isset($_SESSION['user_id'])) {
     header('Location: index.php');
     exit;
 }
 
-// Gestione logout
 if (isset($_GET['logout'])) {
     session_destroy();
     header('Location: index.php');
@@ -17,7 +15,6 @@ if (isset($_GET['logout'])) {
 $username = $_SESSION['username'];
 $privilegi = $_SESSION['privilegi'];
 
-// Configurazione database
 $host = 'localhost';
 $dbname = 'gestioneprodotti';
 $db_username = 'root';
@@ -25,8 +22,6 @@ $db_password = '';
 
 $errore = '';
 $successo = '';
-$errore_prod = '';
-$successo_prod = '';
 
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $db_username, $db_password);
@@ -35,79 +30,222 @@ try {
     die('Errore di connessione: ' . $e->getMessage());
 }
 
-// Gestione inserimento prodotti (SPOSTATA IN CIMA)
+// GESTIONE INSERIMENTO PRODOTTI
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['aggiungi_prodotto'])) {
-    $nome = trim($_POST['nome']);
-    $descrizione = trim($_POST['descrizione']);
-    $quantita = intval($_POST['quantita']);
-    $fornitore = trim($_POST['fornitore']);
+    $padre_nome = trim($_POST['padre_nome']);
+
+
+            $pdo->beginTransaction();
+            $stmt = $pdo->prepare("INSERT INTO padre (nome) VALUES (?)");
+            $stmt->execute([$padre_nome]);
+            $pdo->commit();
+
     
-    if (!empty($nome) && !empty($descrizione) && $quantita >= 0 && !empty($fornitore)) {
+    if (!empty($padre_nome)) {
         try {
-            $stmt = $pdo->prepare("INSERT INTO prodotti (nome, descrizione, quantita, allarme, fornitore) VALUES (?, ?, ?, ?, ?)");
-            $stmt->execute([$nome, $descrizione, $quantita, 'nessuno', $fornitore]);
+            $pdo->beginTransaction();
             
-            $successo_prod = 'Prodotto aggiunto con successo!';
+            $stmt = $pdo->prepare("INSERT INTO prodotti (nome, descrizione, quantita, allarme, fornitore, padre, minimo) VALUES (?, ?, ?, ?, ?, ?, ?)");
+            //$stmt->execute([$padre_nome, 'Gruppo padre', 0, 'nessuno', '', $padre_nome, 0]);
+            
+            $prodotti_da_inserire = [];
+            
+            foreach ($_POST as $key => $value) {
+                if (strpos($key, 'nome_') === 0) {
+                    $index = str_replace('nome_', '', $key);
+                    $nome = trim($value);
+                    $descrizione = trim($_POST['descrizione_' . $index] ?? '');
+                    $quantita = intval($_POST['quantita_' . $index] ?? 0);
+                    $fornitore = trim($_POST['fornitore_' . $index] ?? '');
+                    $minimo = intval($_POST['minimo_' . $index] ?? 0);
+                    
+                    if (!empty($nome)) {
+                        $prodotti_da_inserire[] = [
+                            'nome' => $nome,
+                            'descrizione' => $descrizione,
+                            'quantita' => $quantita,
+                            'fornitore' => $fornitore,
+                            'minimo' => $minimo,
+                            'padre' => $padre_nome
+                        ];
+                    }
+                }
+            }
+            
+            if (count($prodotti_da_inserire) > 0) {
+                $stmt = $pdo->prepare("INSERT INTO prodotti (nome, descrizione, quantita, allarme, fornitore, padre, minimo) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                
+                foreach ($prodotti_da_inserire as $prodotto) {
+                    $stmt->execute([
+                        $prodotto['nome'],
+                        $prodotto['descrizione'],
+                        $prodotto['quantita'],
+                        'nessuno',
+                        $prodotto['fornitore'],
+                        $prodotto['padre'],
+                        $prodotto['minimo']
+                    ]);
+                }
+                
+                $pdo->commit();
+                $successo = json_encode(['tipo' => 'successo', 'messaggio' => 'Gruppo padre e ' . count($prodotti_da_inserire) . ' componenti aggiunti!']);
+            } else {
+                $pdo->commit();
+                $successo = json_encode(['tipo' => 'successo', 'messaggio' => 'Gruppo padre creato!']);
+            }
         } catch (PDOException $e) {
-            $errore_prod = 'Errore durante l\'inserimento: ' . $e->getMessage();
+            $pdo->rollBack();
+            $errore = json_encode(['tipo' => 'errore', 'messaggio' => 'Errore durante l\'inserimento: ' . $e->getMessage()]);
         }
-    } else {
-        $errore_prod = 'Compila tutti i campi correttamente';
     }
 }
 
-// Gestione eliminazione prodotto
+// GESTIONE ELIMINAZIONE SINGOLO PRODOTTO
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['elimina_prodotto'])) {
     $id = intval($_POST['id']);
     
     try {
         $stmt = $pdo->prepare("DELETE FROM prodotti WHERE id = ?");
         $stmt->execute([$id]);
-        
-        $successo = 'Prodotto eliminato con successo!';
+        $successo = json_encode(['tipo' => 'successo', 'messaggio' => 'Prodotto eliminato!']);
     } catch (PDOException $e) {
-        $errore = 'Errore durante l\'eliminazione: ' . $e->getMessage();
+        $errore = json_encode(['tipo' => 'errore', 'messaggio' => 'Errore: ' . $e->getMessage()]);
     }
 }
 
-// Gestione modifica prodotto
+// GESTIONE ELIMINAZIONE GRUPPO PADRE
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['elimina_padre'])) {
+    $padre_nome = trim($_POST['padre_nome']);
+    
+    try {
+        $stmt = $pdo->prepare("DELETE FROM prodotti WHERE padre = ?");
+        $stmt->execute([$padre_nome]);
+        $stmt = $pdo->prepare("DELETE FROM padre WHERE nome = ?");
+        $stmt->execute([$padre_nome]);
+        $successo = json_encode(['tipo' => 'successo', 'messaggio' => 'Gruppo eliminato!']);
+    } catch (PDOException $e) {
+        $errore = json_encode(['tipo' => 'errore', 'messaggio' => 'Errore: ' . $e->getMessage()]);
+    }
+}
+
+// GESTIONE MODIFICA GRUPPO PADRE COMPLETO
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['modifica_gruppo_padre'])) {
+    $vecchio_padre = trim($_POST['vecchio_padre']);
+    $nuovo_padre = trim($_POST['nuovo_padre']);
+    
+    try {
+        $pdo->beginTransaction();
+        
+        // Elimina componenti selezionati
+        if (isset($_POST['elimina_componenti']) && is_array($_POST['elimina_componenti'])) {
+            foreach ($_POST['elimina_componenti'] as $id) {
+                $stmt = $pdo->prepare("DELETE FROM prodotti WHERE id = ?");
+                $stmt->execute([intval($id)]);
+            }
+        }
+        
+        // Modifica componenti esistenti
+        if (isset($_POST['componenti_ids']) && is_array($_POST['componenti_ids'])) {
+            foreach ($_POST['componenti_ids'] as $id) {
+                $nome = trim($_POST['comp_nome_' . $id] ?? '');
+                $descrizione = trim($_POST['comp_descrizione_' . $id] ?? '');
+                $quantita = intval($_POST['comp_quantita_' . $id] ?? 0);
+                $fornitore = trim($_POST['comp_fornitore_' . $id] ?? '');
+                $minimo = intval($_POST['comp_minimo_' . $id] ?? 0);
+                
+                if (!empty($nome)) {
+                    $stmt = $pdo->prepare("UPDATE prodotti SET nome = ?, descrizione = ?, quantita = ?, fornitore = ?, minimo = ?, padre = ? WHERE id = ?");
+                    $stmt->execute([$nome, $descrizione, $quantita, $fornitore, $minimo, $nuovo_padre, intval($id)]);
+
+                    $stmt = $pdo->prepare("UPDATE padre SET nome = ? WHERE nome = ?");
+                    $stmt->execute([ $nuovo_padre, $vecchio_padre]);
+                }
+            }
+        }
+        
+        // Aggiungi nuovi componenti
+        if (isset($_POST['nuovi_componenti']) && is_array($_POST['nuovi_componenti'])) {
+            foreach ($_POST['nuovi_componenti'] as $index) {
+                $nome = trim($_POST['nuovo_nome_' . $index] ?? '');
+                $descrizione = trim($_POST['nuovo_descrizione_' . $index] ?? '');
+                $quantita = intval($_POST['nuovo_quantita_' . $index] ?? 0);
+                $fornitore = trim($_POST['nuovo_fornitore_' . $index] ?? '');
+                $minimo = intval($_POST['nuovo_minimo_' . $index] ?? 0);
+                
+                if (!empty($nome)) {
+                    $stmt = $pdo->prepare("INSERT INTO prodotti (nome, descrizione, quantita, allarme, fornitore, padre, minimo) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                    $stmt->execute([$nome, $descrizione, $quantita, 'nessuno', $fornitore, $nuovo_padre, $minimo]);
+                }
+            }
+        }
+        
+        // Aggiorna nome padre
+        $stmt = $pdo->prepare("UPDATE prodotti SET nome = ?, padre = ? WHERE padre = ? AND nome = ?");
+        $stmt->execute([$nuovo_padre, $nuovo_padre, $vecchio_padre, $vecchio_padre]);
+        
+        $pdo->commit();
+        $successo = json_encode(['tipo' => 'successo', 'messaggio' => 'Gruppo modificato con successo!']);
+    } catch (PDOException $e) {
+        $pdo->rollBack();
+        $errore = json_encode(['tipo' => 'errore', 'messaggio' => 'Errore: ' . $e->getMessage()]);
+    }
+}
+
+// GESTIONE MODIFICA SINGOLO PRODOTTO
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['modifica_prodotto'])) {
     $id = intval($_POST['id']);
     $nome = trim($_POST['nome']);
     $descrizione = trim($_POST['descrizione']);
     $quantita = intval($_POST['quantita']);
     $fornitore = trim($_POST['fornitore']);
+    $minimo = intval($_POST['minimo']);
     
-    if (!empty($nome) && !empty($descrizione) && $quantita >= 0 && !empty($fornitore)) {
+    if (!empty($nome)) {
         try {
-            $stmt = $pdo->prepare("UPDATE prodotti SET nome = ?, descrizione = ?, quantita = ?, fornitore = ? WHERE id = ?");
-            $stmt->execute([$nome, $descrizione, $quantita, $fornitore, $id]);
-            
-            $successo = 'Prodotto modificato con successo!';
+            $stmt = $pdo->prepare("UPDATE prodotti SET nome = ?, descrizione = ?, quantita = ?, fornitore = ?, minimo = ? WHERE id = ?");
+            $stmt->execute([$nome, $descrizione, $quantita, $fornitore, $minimo, $id]);
+            $successo = json_encode(['tipo' => 'successo', 'messaggio' => 'Prodotto modificato!']);
         } catch (PDOException $e) {
-            $errore = 'Errore durante la modifica: ' . $e->getMessage();
+            $errore = json_encode(['tipo' => 'errore', 'messaggio' => 'Errore: ' . $e->getMessage()]);
         }
-    } else {
-        $errore = 'Compila tutti i campi correttamente';
     }
 }
 
-// Recupera tutti i prodotti
+// RECUPERA PRODOTTI
 $prodotti = [];
 try {
-    $stmt = $pdo->query("SELECT * FROM prodotti ORDER BY id DESC");
+    $stmt = $pdo->query("SELECT * FROM prodotti ORDER BY padre ASC, id DESC");
     $prodotti = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
-    $errore = 'Errore nel recupero dei prodotti: ' . $e->getMessage();
+    $errore = json_encode(['tipo' => 'errore', 'messaggio' => 'Errore nel recupero: ' . $e->getMessage()]);
 }
+
+$prodotti_per_padre = [];
+foreach ($prodotti as $prodotto) {
+    $padre = $prodotto['padre'] ?: 'Senza Padre';
+    if (!isset($prodotti_per_padre[$padre])) {
+        $prodotti_per_padre[$padre] = [];
+    }
+    $prodotti_per_padre[$padre][] = $prodotto;
+}
+
+// COMPONENTI PREDEFINITI
+$componenti_predefiniti = [
+    'Telaio', 'Telaio Restauro', 'Anta', 'Anta Maniglia Passante',
+    'Scambio Battuta', 'Traverso Telaio da mm. 104', 'Traverso Anta da mm. 70',
+    'FV Vetro 45 MM', 'FV Fix'
+];
 ?>
 <!DOCTYPE html>
 <html lang="it">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Prodotti - Gestione Prodotti</title>
+    <title>Gestione Prodotti</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        
         * {
             margin: 0;
             padding: 0;
@@ -115,135 +253,25 @@ try {
         }
         
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #f5f5f5;
+            font-family: 'Inter', sans-serif;
+            background: #f5f6fa; /* bianco/grigio chiaro */
             min-height: 100vh;
         }
         
-        /* Sidebar */
-        .sidebar {
-            position: fixed;
-            left: -280px;
-            top: 0;
-            width: 280px;
-            height: 100vh;
-            background: #1a1a1a;
-            transition: left 0.3s ease;
-            z-index: 1000;
-            box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3);
-        }
-        
-        .sidebar.active {
-            left: 0;
-        }
-        
-        .sidebar-header {
-            padding: 30px 20px;
-            border-bottom: 1px solid #333;
-            text-align: center;
-        }
-        
-        .sidebar-logo {
-            width: 80px;
-            height: 80px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #ffffff 0%, #e0e0e0 100%);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 15px;
-            font-size: 36px;
-            font-weight: bold;
-            color: #1a1a1a;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-        }
-        
-        .sidebar-title {
-            color: white;
-            font-size: 18px;
-            font-weight: 600;
-        }
-        
-        .sidebar-menu {
-            padding: 20px 0;
-        }
-        
-        .menu-item {
-            padding: 15px 25px;
-            color: white;
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            cursor: pointer;
-            transition: all 0.3s;
-            border-left: 3px solid transparent;
-            text-decoration: none;
-        }
-        
-        .menu-item:hover {
-            background: #2d2d2d;
-            border-left-color: white;
-            transform: translateX(5px);
-        }
-        
-        .menu-item.active {
-            background: #2d2d2d;
-            border-left-color: white;
-        }
-        
-        .menu-icon {
-            font-size: 24px;
-            width: 30px;
-            text-align: center;
-        }
-        
-        .menu-text {
-            font-size: 15px;
-        }
-        
-        .sidebar-footer {
-            position: absolute;
-            bottom: 0;
-            width: 100%;
-            padding: 20px;
-            border-top: 1px solid #333;
-            color: #999;
-            font-size: 12px;
-            text-align: center;
-        }
-        
-        /* Overlay */
-        .overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            opacity: 0;
-            visibility: hidden;
-            transition: opacity 0.3s ease, visibility 0.3s ease;
-            z-index: 999;
-        }
-        
-        .overlay.active {
-            opacity: 1;
-            visibility: visible;
-        }
-        
-        /* Navbar */
+        /* NAVBAR */
         .navbar {
             position: fixed;
             top: 0;
             left: 0;
             right: 0;
-            background: #1a1a1a;
+            background: rgba(26, 26, 26, 0.95);
+            backdrop-filter: blur(10px);
             color: white;
             padding: 15px 30px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
             z-index: 998;
         }
         
@@ -253,94 +281,63 @@ try {
             gap: 20px;
         }
         
-        .menu-toggle {
-            background: none;
-            border: none;
-            color: white;
-            font-size: 24px;
-            cursor: pointer;
-            padding: 5px 10px;
-            transition: all 0.3s;
-            border-radius: 5px;
-        }
-        
-        .menu-toggle:hover {
-            background: #2d2d2d;
-            transform: scale(1.05);
-        }
-        
-        .menu-toggle:active {
-            transform: scale(0.95);
-        }
-        
         .navbar-logo {
             width: 45px;
             height: 45px;
             border-radius: 50%;
-            background: linear-gradient(135deg, #ffffff 0%, #e0e0e0 100%);
+            background: linear-gradient(135deg, #ffffffff);
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 20px;
             font-weight: bold;
             color: #1a1a1a;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.5);
         }
         
         .navbar h1 {
             font-size: 24px;
-        }
-        
-        .user-info {
-            display: flex;
-            align-items: center;
-            gap: 20px;
+            font-weight: 600;
         }
         
         .btn-logout {
             background: white;
             color: #1a1a1a;
-            padding: 8px 20px;
+            padding: 10px 24px;
             border: none;
-            border-radius: 5px;
+            border-radius: 8px;
             cursor: pointer;
             font-weight: 600;
             transition: all 0.3s;
             text-decoration: none;
-            display: inline-block;
         }
         
         .btn-logout:hover {
-            background: #f0f0f0;
             transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255, 255, 255, 0.3);
         }
         
+        /* CONTAINER */
         .container {
-            max-width: 1400px;
+            max-width: 1600px;
             margin: 100px auto 40px;
             padding: 0 20px;
         }
         
-        .page-header {
+        /* SEZIONI */
+        .insert-section, .prodotti-section {
             background: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 35px;
+            border-radius: 16px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
             margin-bottom: 30px;
-            animation: fadeIn 0.5s;
+            animation: slideDown 0.5s ease;
         }
         
-        .header-top {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-        
-        @keyframes fadeIn {
+        @keyframes slideDown {
             from {
                 opacity: 0;
-                transform: translateY(20px);
+                transform: translateY(-30px);
             }
             to {
                 opacity: 1;
@@ -348,137 +345,54 @@ try {
             }
         }
         
-        .page-header h2 {
-            color: #1a1a1a;
-            font-size: 28px;
-        }
-        
-        .prodotti-count {
-            background: #1a1a1a;
-            color: white;
-            padding: 10px 20px;
-            border-radius: 25px;
-            font-weight: 600;
-        }
-        
-        .search-container {
-            position: relative;
-        }
-        
-        .search-box {
-            width: 100%;
-            padding: 12px 45px 12px 15px;
-            border: 2px solid #e0e0e0;
-            border-radius: 25px;
-            font-size: 15px;
-            transition: all 0.3s;
-            background: #f9f9f9;
-        }
-        
-        .search-box:focus {
-            outline: none;
-            border-color: #1a1a1a;
-            background: white;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        }
-        
-        .search-icon {
-            position: absolute;
-            right: 15px;
-            top: 50%;
-            transform: translateY(-50%);
-            font-size: 20px;
-            color: #666;
-            pointer-events: none;
-        }
-        
-        .clear-search {
-            position: absolute;
-            right: 45px;
-            top: 50%;
-            transform: translateY(-50%);
-            background: #1a1a1a;
-            color: white;
-            border: none;
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 14px;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.3s;
-        }
-        
-        .clear-search.active {
-            display: flex;
-        }
-        
-        .clear-search:hover {
-            background: #000;
-            transform: translateY(-50%) scale(1.1);
-        }
-        
-        .search-results-info {
-            margin-top: 15px;
-            color: #666;
-            font-size: 14px;
-            text-align: center;
-            display: none;
-        }
-        
-        .search-results-info.active {
-            display: block;
-        }
-        
-        /* Sezione Inserimento Prodotto */
-        .insert-section {
-            background: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            margin-bottom: 30px;
-            animation: fadeIn 0.5s;
-        }
-        
         .section-header {
             display: flex;
             align-items: center;
-            gap: 15px;
-            margin-bottom: 25px;
-            padding-bottom: 15px;
+            justify-content: space-between;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
             border-bottom: 2px solid #f0f0f0;
-        }
-        
-        .section-icon {
-            font-size: 32px;
+            cursor: pointer;
         }
         
         .section-header h3 {
             color: #1a1a1a;
-            font-size: 22px;
+            font-size: 24px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 15px;
         }
         
-        .form-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
+        .toggle-icon {
+            font-size: 28px;
+            transition: transform 0.3s;
+            color: #667eea;
         }
         
+        .toggle-icon.collapsed {
+            transform: rotate(-90deg);
+        }
+        
+        .form-content {
+            display: none;
+        }
+        
+        .form-content.expanded {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        /* FORM */
         .form-group {
             margin-bottom: 20px;
         }
         
-        .form-group.full-width {
-            grid-column: 1 / -1;
-        }
-        
         label {
             display: block;
-            margin-bottom: 8px;
+            margin-bottom: 10px;
             color: #1a1a1a;
-            font-weight: 500;
+            font-weight: 600;
             font-size: 14px;
         }
         
@@ -486,202 +400,268 @@ try {
         input[type="number"],
         textarea {
             width: 100%;
-            padding: 12px 15px;
+            padding: 14px 18px;
             border: 2px solid #e0e0e0;
-            border-radius: 5px;
+            border-radius: 10px;
             font-size: 15px;
             transition: all 0.3s;
-            background: #f9f9f9;
             font-family: inherit;
-        }
-        
-        textarea {
-            resize: vertical;
-            min-height: 100px;
         }
         
         input:focus,
         textarea:focus {
             outline: none;
-            border-color: #1a1a1a;
-            background: white;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border-color: #667eea;
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
         }
         
-        button[type="submit"] {
-            background: #1a1a1a;
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+        
+        /* PADRE SECTION */
+        .padre-section {
+            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+            padding: 25px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            border: 2px solid #667eea30;
+        }
+        
+        /* FIGLI CONTAINER */
+        .figli-container {
+            border: 2px dashed #667eea40;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 25px;
+            background: #f8f9ff;
+        }
+        
+        .figli-header {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1a1a1a;
+            margin-bottom: 25px;
+        }
+        
+        .figlio-item {
+            background: white;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            transition: all 0.3s;
+        }
+        
+        .figlio-item:hover {
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.2);
+            border-color: #667eea;
+        }
+        
+        .figlio-header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        
+        .figlio-numero {
+            font-weight: 700;
+            color: #667eea;
+            font-size: 18px;
+        }
+        
+        .btn-remove-figlio {
+            background: linear-gradient(135deg, #ff4444 0%, #cc0000 100%);
+            color: white;
+            border: none;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 20px;
+            transition: all 0.3s;
+        }
+        
+        .btn-remove-figlio:hover {
+            transform: rotate(90deg) scale(1.1);
+        }
+        
+        .figlio-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            gap: 15px;
+        }
+        
+        /* BUTTONS */
+        .btn-add-figlio {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
             color: white;
             padding: 14px 30px;
             border: none;
-            border-radius: 5px;
+            border-radius: 10px;
             font-size: 16px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s;
-            margin-top: 10px;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+        }
+        
+        .btn-add-figlio:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(76, 175, 80, 0.4);
+        }
+        
+        button[type="submit"] {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 16px 45px;
+            border: none;
+            border-radius: 10px;
+            font-size: 17px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
         }
         
         button[type="submit"]:hover {
-            background: #000;
-            transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.5);
         }
         
-        button[type="submit"]:active {
-            transform: translateY(0);
-        }
-        
-        .messaggio {
-            padding: 12px 20px;
-            border-radius: 5px;
-            margin-bottom: 20px;
-            animation: fadeIn 0.5s;
-            font-size: 14px;
-        }
-        
-        .errore {
-            background: #ffe6e6;
-            color: #cc0000;
-            border: 1px solid #ff9999;
-        }
-        
-        .successo {
-            background: #e6ffe6;
-            color: #006600;
-            border: 1px solid #99ff99;
-        }
-        
-        .prodotti-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-            gap: 25px;
-        }
-        
-        .prodotto-card {
-            background: white;
-            border-radius: 10px;
+        /* PRODOTTI GRUPPO */
+        .padre-group {
+            margin-bottom: 30px;
             padding: 25px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            transition: all 0.3s;
-            animation: slideUp 0.5s ease;
-            position: relative;
+            background: linear-gradient(135deg, #f8f9ff 0%, #ffffff 100%);
+            border-radius: 16px;
+            border-left: 5px solid #667eea;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
         }
         
-        @keyframes slideUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-        
-        .prodotto-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
-        }
-        
-        .prodotto-card.hidden {
-            display: none;
-        }
-        
-        .prodotto-header {
+        .padre-header {
             display: flex;
             justify-content: space-between;
-            align-items: start;
-            margin-bottom: 15px;
+            align-items: center;
+            cursor: pointer;
+            padding: 20px;
+            background: white;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            transition: all 0.3s;
         }
         
-        .prodotto-nome {
-            font-size: 20px;
-            font-weight: 600;
+        .padre-header:hover {
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.15);
+        }
+        
+        .padre-title {
+            font-size: 26px;
+            font-weight: 700;
             color: #1a1a1a;
-            flex: 1;
-            word-break: break-word;
+            display: flex;
+            align-items: center;
+            gap: 12px;
         }
         
-        .prodotto-actions {
+        .padre-badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 6px 18px;
+            border-radius: 25px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        .padre-actions {
             display: flex;
             gap: 10px;
         }
         
-        .btn-modifica, .btn-elimina {
+        .btn-edit-padre,
+        .btn-delete-padre {
             border: none;
-            width: 40px;
-            height: 40px;
+            width: 44px;
+            height: 44px;
             border-radius: 50%;
             cursor: pointer;
-            font-size: 18px;
+            font-size: 20px;
             transition: all 0.3s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
         }
         
-        .btn-modifica {
-            background: #1a1a1a;
+        .btn-edit-padre {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
         }
         
-        .btn-modifica:hover {
-            background: #000;
-            transform: rotate(90deg) scale(1.1);
-        }
-        
-        .btn-elimina {
-            background: #ff4444;
-            color: white;
-        }
-        
-        .btn-elimina:hover {
-            background: #cc0000;
+        .btn-edit-padre:hover {
             transform: scale(1.1);
         }
         
-        .prodotto-info {
-            margin-top: 15px;
+        .btn-delete-padre {
+            background: linear-gradient(135deg, #ff4444 0%, #cc0000 100%);
+            color: white;
+        }
+        
+        .btn-delete-padre:hover {
+            transform: scale(1.1);
+        }
+        
+        .figli-list {
+            display: none;
+            padding-top: 15px;
+        }
+        
+        .figli-list.expanded {
+            display: block;
+        }
+        
+        .prodotti-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 20px;
+        }
+        
+        .prodotto-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s;
+        }
+        
+        .prodotto-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.2);
+        }
+        
+        .prodotto-nome {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1a1a1a;
+            margin-bottom: 15px;
         }
         
         .info-row {
             display: flex;
-            margin-bottom: 10px;
-            font-size: 14px;
+            margin-bottom: 8px;
+            font-size: 13px;
         }
         
         .info-label {
             font-weight: 600;
             color: #666;
-            min-width: 100px;
+            min-width: 90px;
         }
         
-        .info-value {
-            color: #1a1a1a;
-            flex: 1;
-        }
-        
-        .prodotto-descrizione {
-            margin-top: 15px;
-            padding-top: 15px;
-            border-top: 1px solid #f0f0f0;
-            color: #666;
-            font-size: 14px;
-            line-height: 1.6;
-        }
-        
-        .badge-quantita {
-            display: inline-block;
-            background: #e0e0e0;
-            color: #1a1a1a;
-            padding: 5px 12px;
-            border-radius: 15px;
-            font-size: 13px;
-            font-weight: 600;
-        }
-        
-        /* Modal */
+        /* MODAL */
         .modal {
             position: fixed;
             top: 0;
@@ -693,7 +673,7 @@ try {
             align-items: center;
             justify-content: center;
             z-index: 10000;
-            animation: fadeIn 0.3s;
+            backdrop-filter: blur(5px);
         }
         
         .modal.active {
@@ -702,56 +682,42 @@ try {
         
         .modal-content {
             background: white;
-            border-radius: 10px;
+            border-radius: 16px;
             width: 90%;
-            max-width: 600px;
+            max-width: 800px;
             max-height: 90vh;
             overflow-y: auto;
-            animation: slideDown 0.3s ease;
-        }
-        
-        @keyframes slideDown {
-            from {
-                opacity: 0;
-                transform: translateY(-50px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
         }
         
         .modal-header {
             padding: 25px;
-            border-bottom: 1px solid #f0f0f0;
+            border-bottom: 2px solid #f0f0f0;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+            border-radius: 16px 16px 0 0;
         }
         
         .modal-header h3 {
             color: #1a1a1a;
             font-size: 22px;
+            font-weight: 700;
         }
         
         .modal-close {
             background: none;
             border: none;
-            font-size: 28px;
+            font-size: 32px;
             color: #999;
             cursor: pointer;
-            width: 35px;
-            height: 35px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 50%;
             transition: all 0.3s;
         }
         
         .modal-close:hover {
-            background: #f0f0f0;
             color: #333;
+            transform: rotate(90deg);
         }
         
         .modal-body {
@@ -760,626 +726,687 @@ try {
         
         .modal-footer {
             padding: 20px 25px;
-            border-top: 1px solid #f0f0f0;
+            border-top: 2px solid #f0f0f0;
             display: flex;
             gap: 10px;
             justify-content: flex-end;
         }
         
-        .btn {
-            padding: 12px 25px;
-            border: none;
-            border-radius: 5px;
-            font-size: 15px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        
-        .btn-primary {
-            background: #1a1a1a;
-            color: white;
-        }
-        
-        .btn-primary:hover {
-            background: #000;
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-        }
-        
-        .btn-secondary {
-            background: #e0e0e0;
-            color: #1a1a1a;
-        }
-        
-        .btn-secondary:hover {
-            background: #d0d0d0;
-        }
-        
-        /* Popup notification */
-        .popup-notification {
+        /* ALERT MODERNO */
+        .modern-alert {
             position: fixed;
-            top: -100px;
+            top: -200px;
             left: 50%;
             transform: translateX(-50%);
             background: white;
-            padding: 20px 30px;
-            border-radius: 10px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-            z-index: 9999;
+            padding: 25px 35px;
+            border-radius: 16px;
+            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.3);
+            z-index: 99999;
             display: flex;
             align-items: center;
-            gap: 15px;
-            min-width: 300px;
+            gap: 20px;
+            min-width: 400px;
+            max-width: 600px;
             transition: top 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
         }
         
-        .popup-notification.show {
-            top: 90px;
+        .modern-alert.show {
+            top: 100px;
         }
         
-        .popup-notification.success {
-            border-left: 5px solid #00cc00;
+        .alert-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            flex-shrink: 0;
         }
         
-        .popup-icon {
-            font-size: 32px;
+        .modern-alert.successo .alert-icon {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
         }
         
-        .popup-content {
+        .modern-alert.errore .alert-icon {
+            background: linear-gradient(135deg, #ff4444 0%, #cc0000 100%);
+            color: white;
+        }
+        
+        .alert-content {
             flex: 1;
         }
         
-        .popup-title {
-            font-weight: 600;
+        .alert-title {
+            font-weight: 700;
+            font-size: 18px;
             color: #1a1a1a;
             margin-bottom: 5px;
         }
         
-        .popup-message {
+        .alert-message {
             font-size: 14px;
             color: #666;
         }
         
-        .popup-close {
+        .alert-close {
             background: none;
             border: none;
-            font-size: 24px;
+            font-size: 28px;
             color: #999;
             cursor: pointer;
-            padding: 0;
-            width: 30px;
-            height: 30px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 50%;
             transition: all 0.3s;
         }
         
-        .popup-close:hover {
-            background: #f0f0f0;
+        .alert-close:hover {
             color: #333;
-        }
-        
-        /* Confirm Dialog */
-        .confirm-dialog {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.7);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 10001;
-        }
-        
-        .confirm-dialog.active {
-            display: flex;
-        }
-        
-        .confirm-content {
-            background: white;
-            border-radius: 10px;
-            padding: 30px;
-            max-width: 450px;
-            width: 90%;
-            text-align: center;
-            animation: slideDown 0.3s ease;
-        }
-        
-        .confirm-icon {
-            font-size: 50px;
-            margin-bottom: 20px;
-        }
-        
-        .confirm-title {
-            font-size: 22px;
-            font-weight: 600;
-            color: #1a1a1a;
-            margin-bottom: 10px;
-        }
-        
-        .confirm-message {
-            color: #666;
-            margin-bottom: 25px;
-            line-height: 1.6;
-        }
-        
-        .confirm-buttons {
-            display: flex;
-            gap: 10px;
-            justify-content: center;
-        }
-        
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-        }
-        
-        .empty-icon {
-            font-size: 80px;
-            margin-bottom: 20px;
-            opacity: 0.3;
-        }
-        
-        .empty-title {
-            font-size: 24px;
-            color: #1a1a1a;
-            margin-bottom: 10px;
-        }
-        
-        .empty-message {
-            color: #666;
-            font-size: 16px;
-        }
-        
-        .no-results {
-            text-align: center;
-            padding: 60px 20px;
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            display: none;
-        }
-        
-        .no-results.active {
-            display: block;
-        }
-        
-        .no-results-icon {
-            font-size: 80px;
-            margin-bottom: 20px;
-            opacity: 0.3;
-        }
-        
-        .no-results-title {
-            font-size: 24px;
-            color: #1a1a1a;
-            margin-bottom: 10px;
-        }
-        
-        .no-results-message {
-            color: #666;
-            font-size: 16px;
+            transform: rotate(90deg);
         }
         
         @media (max-width: 768px) {
-            .navbar h1 {
-                font-size: 18px;
-            }
-            
-            .user-info span {
-                display: none;
+            .figlio-grid {
+                grid-template-columns: 1fr;
             }
             
             .prodotti-grid {
                 grid-template-columns: 1fr;
             }
             
-            .header-top {
-                flex-direction: column;
-                gap: 15px;
-                align-items: stretch;
-            }
-            
-            .search-container {
-                width: 100%;
-            }
-            
-            .form-grid {
-                grid-template-columns: 1fr;
+            .modern-alert {
+                min-width: 90%;
             }
         }
     </style>
 </head>
 <body>
-    <!-- Overlay -->
-    <div class="overlay" id="overlay"></div>
-    
-    <!-- Popup Notification -->
-    <div class="popup-notification" id="popupNotification">
-        <span class="popup-icon" id="popupIcon"></span>
-        <div class="popup-content">
-            <div class="popup-title" id="popupTitle"></div>
-            <div class="popup-message" id="popupMessage"></div>
+    <!-- ALERT MODERNO -->
+    <div class="modern-alert" id="modernAlert">
+        <div class="alert-icon" id="alertIcon"></div>
+        <div class="alert-content">
+            <div class="alert-title" id="alertTitle"></div>
+            <div class="alert-message" id="alertMessage"></div>
         </div>
-        <button class="popup-close" onclick="closePopup()">×</button>
+        <button class="alert-close" onclick="closeAlert()">×</button>
     </div>
     
-    <!-- Confirm Dialog Modifica -->
-    <div class="confirm-dialog" id="confirmDialog">
-        <div class="confirm-content">
-            <div class="confirm-icon">⚠️</div>
-            <div class="confirm-title">Conferma Modifica</div>
-            <div class="confirm-message">Sei sicuro di voler modificare questo prodotto? Questa azione aggiornerà i dati nel database.</div>
-            <div class="confirm-buttons">
-                <button class="btn btn-secondary" onclick="closeConfirm()">Annulla</button>
-                <button class="btn btn-primary" onclick="confirmModifica()">Conferma</button>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Confirm Dialog Eliminazione -->
-    <div class="confirm-dialog" id="confirmDeleteDialog">
-        <div class="confirm-content">
-            <div class="confirm-icon">🗑️</div>
-            <div class="confirm-title">Conferma Eliminazione</div>
-            <div class="confirm-message" id="deleteMessage">Sei sicuro di voler eliminare questo prodotto? Questa azione è irreversibile!</div>
-            <div class="confirm-buttons">
-                <button class="btn btn-secondary" onclick="closeDeleteConfirm()">Annulla</button>
-                <button class="btn btn-primary" style="background: #ff4444;" onclick="confirmDelete()">Elimina</button>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Sidebar -->
-    <div class="sidebar" id="sidebar">
-        <div class="sidebar-header">
-            <div class="sidebar-logo">GP</div>
-            <div class="sidebar-title">Gestione Prodotti</div>
-        </div>
-        
-        <?php include './widget/menu.php'; ?>
-    </div>
-    
-    <!-- Navbar -->
+    <!-- NAVBAR -->
     <nav class="navbar">
-        <div class="navbar-left">
-            <button class="menu-toggle" id="menuToggle">☰</button>
-            <div class="navbar-logo">GP</div>
-            <h1>Gestione Prodotti</h1>
-        </div>
-        <div class="user-info">
-            <span>Benvenuto, <strong><?php echo htmlspecialchars($username); ?></strong></span>
-            <a href=".\logout.php" class="btn-logout">Logout</a>
-        </div>
+       <div class="navbar-left">
+    <button class="hamburger-btn" onclick="toggleMenu()">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <div class="navbar-logo">GP</div>
+    <h1>Gestione Prodotti</h1>
+</div>
+
     </nav>
+<script>
+    function toggleMenu() {
+    document.getElementById('sideMenu').classList.toggle('active');
+    document.getElementById('menuOverlay').classList.toggle('active');
+}
+
+</script>
+
+    <style>
+        /* HAMBURGER */
+.navbar-right {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.welcome-text {
+    font-size: 14px;
+}
+
+.hamburger-btn {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 26px;
+    cursor: pointer;
+}
+
+/* SIDE MENU */
+.side-menu {
+    position: fixed;
+    top: 0;
+    left: -320px;
+    width: 300px;
+    height: 100%;
+ background: #ffffff;
+    color: #1a1a1a;
+    z-index: 10001;
+    transition: right 0.4s ease;
+    padding: 30px 20px;
+    box-shadow: -10px 0 30px rgba(0,0,0,0.5);
+}
+
+.side-menu.active {
+    left: 0;
+}
+
+.close-menu {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 34px;
+    cursor: pointer;
+    position: absolute;
+    left: 20px;
+    right: 20px;
+}
+
+.menu-list {
+    list-style: none;
+    margin-top: 60px;
+    padding: 0;
+}
+
+.menu-list li {
+    margin-bottom: 15px;
+}
+
+.menu-list a {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 18px;
+    border-radius: 10px;
+    text-decoration: none;
+    color: #1a1a1a;
+    font-size: 16px;
+    transition: background 0.3s;
+}
+
+.menu-list a:hover,
+.menu-list a.active {
+    background: #f0f2f8;
+}
+
+
+.menu-list .logout {
+    background: linear-gradient(135deg, #ff4444, #cc0000);
+}
+
+.divider {
+    height: 1px;
+    background: rgba(255,255,255,0.2);
+    margin: 20px 0;
+}
+
+/* OVERLAY */
+.menu-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 10000;
+    display: none;
+}
+
+.menu-overlay.active {
+    display: block;
+}
+
+    </style>
+    <!-- MENU HAMBURGER -->
+<div class="side-menu" id="sideMenu">
+    <button class="close-menu" onclick="toggleMenu()">×</button>
+
+    <ul class="menu-list">
+        <li>
+            <a href="dashboard.php">
+                🏠 <span>Dashboard</span>
+            </a>
+        </li>
+        <li>
+            <a href="pagine_controllo.php">
+                ⚙️ <span>Pagina di Controllo</span>
+            </a>
+        </li>
+        <li>
+            <a href="prodotti.php" class="active">
+                📦 <span>Modifica Prodotti</span>
+            </a>
+        </li>
+        <li>
+            <a href="movimenti.php">
+                🏷️ <span>Registra Entrate/Uscite</span>
+            </a>
+        </li>
+        <li>
+            <a href="storico.php">
+                📈 <span>Storico Entrate/Uscite</span>
+            </a>
+        </li>
+        <li class="divider"></li>
+        <li>
+            <a href="logout.php" class="logout">
+                🚪 <span>Logout</span>
+            </a>
+        </li>
+    </ul>
+</div>
+
+<div class="menu-overlay" id="menuOverlay" onclick="toggleMenu()"></div>
     
+    <!-- CONTAINER -->
     <div class="container">
-        <!-- Sezione Inserimento Prodotto (SPOSTATA IN CIMA) -->
+        <!-- INSERIMENTO -->
         <div class="insert-section">
-            <div class="section-header">
-                <span class="section-icon">➕</span>
-                <h3>Inserimento Nuovo Prodotto</h3>
+            <div class="section-header" onclick="toggleFormSection()">
+           <h3><i class="fas fa-plus-circle"></i> Inserimento Nuovo Gruppo Prodotti</h3>
+                <span class="toggle-icon collapsed" id="formToggleIcon">▼</span>
             </div>
             
-            <?php if ($errore_prod): ?>
-                <div class="messaggio errore"><?php echo htmlspecialchars($errore_prod); ?></div>
-            <?php endif; ?>
-            
-            <form method="POST" action="" id="formProdotto">
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label for="nome">Nome Prodotto *</label>
-                        <input type="text" id="nome" name="nome" required>
+            <div class="form-content" id="formContent">
+                <form method="POST" action="" id="formProdotto">
+                    <div class="padre-section">
+                        <div class="form-group">
+                            <label for="padre_nome"><i class="fas fa-folder"></i> Nome Gruppo Padre *</label>
+                            <input type="text" id="padre_nome" name="padre_nome" required placeholder="Es: Infisso Standard">
+                        </div>
                     </div>
                     
-                    <div class="form-group">
-                        <label for="quantita">Quantità *</label>
-                        <input type="number" id="quantita" name="quantita" min="0" value="0" required>
+                    <div class="figli-container">
+                        <div class="figli-header">
+                            <i class="fas fa-cubes"></i> Componenti del Gruppo
+                        </div>
+                        
+                        <div id="figliContainer">
+                            <?php foreach ($componenti_predefiniti as $i => $comp): ?>
+                            <div class="figlio-item" data-index="<?php echo $i; ?>">
+                                <div class="figlio-header-row">
+                                    <span class="figlio-numero">Componente #<?php echo $i + 1; ?></span>
+                                    <button type="button" class="btn-remove-figlio" onclick="removeFiglio(<?php echo $i; ?>)">×</button>
+                                </div>
+                                <div class="figlio-grid">
+                                    <div class="form-group">
+                                        <label>Nome Prodotto *</label>
+                                        <input type="text" name="nome_<?php echo $i; ?>" value="<?php echo htmlspecialchars($comp); ?>" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Quantità *</label>
+                                        <input type="number" name="quantita_<?php echo $i; ?>" min="0" value="0" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Minimo *</label>
+                                        <input type="number" name="minimo_<?php echo $i; ?>" min="0" value="0" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Fornitore</label>
+                                        <input type="text" name="fornitore_<?php echo $i; ?>">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Descrizione</label>
+                                    <textarea name="descrizione_<?php echo $i; ?>"></textarea>
+                                </div>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
+                        
+                        <button type="button" class="btn-add-figlio" onclick="addFiglio()">
+                            <i class="fas fa-plus"></i> Aggiungi Componente
+                        </button>
                     </div>
                     
-                    <div class="form-group">
-                        <label for="fornitore">Fornitore *</label>
-                        <input type="text" id="fornitore" name="fornitore" required>
-                    </div>
-                    
-                    <div class="form-group full-width">
-                        <label for="descrizione">Descrizione *</label>
-                        <textarea id="descrizione" name="descrizione" required></textarea>
-                    </div>
-                </div>
-                
-                <button type="submit" name="aggiungi_prodotto">Aggiungi Prodotto</button>
-            </form>
+                    <button type="submit" name="aggiungi_prodotto">
+                        <i class="fas fa-save"></i> Salva Gruppo Completo
+                    </button>
+                </form>
+            </div>
         </div>
         
-        <!-- Sezione Elenco Prodotti -->
-        <div class="page-header">
-            <div class="header-top">
-                <h2>Elenco Prodotti</h2>
-                <div class="prodotti-count" id="totalCount"><?php echo count($prodotti); ?> Prodotti</div>
-            </div>
+        <!-- ELENCO PRODOTTI -->
+        <div class="prodotti-section">
+            <h2 style="font-size: 28px; margin-bottom: 25px; color: #1a1a1a; font-weight: 700;">
+                <i class="fas fa-box"></i> Elenco Gruppi Prodotti
+            </h2>
             
-            <div class="search-container">
-                <input type="text" 
-                       class="search-box" 
-                       id="searchInput" 
-                       placeholder="Cerca prodotti per nome, descrizione o fornitore..."
-                       autocomplete="off">
-                <button class="clear-search" id="clearSearch" onclick="clearSearch()">×</button>
-                <span class="search-icon">🔍</span>
-            </div>
-            
-            <div class="search-results-info" id="searchResultsInfo"></div>
-        </div>
-        
-        <?php if (empty($prodotti)): ?>
-            <div class="empty-state">
-                <div class="empty-icon">📦</div>
-                <div class="empty-title">Nessun prodotto trovato</div>
-                <div class="empty-message">Aggiungi il tuo primo prodotto utilizzando il form sopra</div>
-            </div>
-        <?php else: ?>
-            <div class="no-results" id="noResults">
-                <div class="no-results-icon">🔍</div>
-                <div class="no-results-title">Nessun risultato</div>
-                <div class="no-results-message">Nessun prodotto corrisponde alla tua ricerca</div>
-            </div>
-            
-            <div class="prodotti-grid" id="prodottiGrid">
-                <?php foreach ($prodotti as $index => $prodotto): ?>
-                    <div class="prodotto-card" 
-                         style="animation-delay: <?php echo $index * 0.1; ?>s;"
-                         data-nome="<?php echo strtolower(htmlspecialchars($prodotto['nome'])); ?>"
-                         data-descrizione="<?php echo strtolower(htmlspecialchars($prodotto['descrizione'])); ?>"
-                         data-fornitore="<?php echo strtolower(htmlspecialchars($prodotto['fornitore'])); ?>">
-                        <div class="prodotto-header">
-                            <div class="prodotto-nome"><?php echo htmlspecialchars($prodotto['nome']); ?></div>
-                            <div class="prodotto-actions">
-                                <button class="btn-modifica" onclick="openModal(<?php echo htmlspecialchars(json_encode($prodotto)); ?>)" title="Modifica prodotto">
-                                    ✏️
+            <?php if (!empty($prodotti_per_padre)): ?>
+                <?php foreach ($prodotti_per_padre as $padre => $figli): ?>
+                    <div class="padre-group">
+                        <div class="padre-header" onclick="toggleFigliList(this)">
+                            <div class="padre-title">
+                                <i class="fas fa-folder-open"></i>
+                                <?php echo htmlspecialchars($padre); ?>
+                                <span class="padre-badge"><?php echo count($figli) - 1; ?> componenti</span>
+                            </div>
+                            <div class="padre-actions" onclick="event.stopPropagation()">
+                                <button class="btn-edit-padre" onclick="openEditPadreModal('<?php echo htmlspecialchars($padre, ENT_QUOTES); ?>', <?php echo htmlspecialchars(json_encode($figli)); ?>)" title="Modifica gruppo">
+                                    <i class="fas fa-edit"></i>
                                 </button>
-                                <button class="btn-elimina" onclick="showDeleteConfirm(<?php echo $prodotto['id']; ?>, '<?php echo addslashes(htmlspecialchars($prodotto['nome'])); ?>')" title="Elimina prodotto">
-                                    🗑️
+                                <button class="btn-delete-padre" onclick="confirmDeletePadre('<?php echo htmlspecialchars($padre, ENT_QUOTES); ?>', <?php echo count($figli) - 1; ?>)" title="Elimina gruppo">
+                                    <i class="fas fa-trash"></i>
                                 </button>
                             </div>
                         </div>
                         
-                        <div class="prodotto-info">
-                            <div class="info-row">
-                                <span class="info-label">Quantità:</span>
-                                <span class="info-value">
-                                    <span class="badge-quantita"><?php echo $prodotto['quantita']; ?> pz</span>
-                                </span>
+                        <div class="figli-list">
+                            <div class="prodotti-grid">
+                                <?php foreach ($figli as $prodotto): ?>
+                                    <?php if ($prodotto['nome'] === $prodotto['padre']) continue; ?>
+                                    <div class="prodotto-card">
+                                        <div class="prodotto-nome"><?php echo htmlspecialchars($prodotto['nome']); ?></div>
+                                        <div class="info-row">
+                                            <span class="info-label">Quantità:</span>
+                                            <span><?php echo $prodotto['quantita']; ?> pz</span>
+                                        </div>
+                                        <div class="info-row">
+                                            <span class="info-label">Minimo:</span>
+                                            <span><?php echo $prodotto['minimo']; ?> pz</span>
+                                        </div>
+                                        <div class="info-row">
+                                            <span class="info-label">Fornitore:</span>
+                                            <span><?php echo htmlspecialchars($prodotto['fornitore']); ?></span>
+                                        </div>
+                                        <?php if (!empty($prodotto['descrizione'])): ?>
+                                            <div style="margin-top: 15px; padding-top: 15px; border-top: 2px solid #f0f0f0; color: #666; font-size: 13px;">
+                                                <?php echo htmlspecialchars($prodotto['descrizione']); ?>
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
+                                <?php endforeach; ?>
                             </div>
-                            <div class="info-row">
-                                <span class="info-label">Fornitore:</span>
-                                <span class="info-value"><?php echo htmlspecialchars($prodotto['fornitore']); ?></span>
-                            </div>
-                            <div class="info-row">
-                                <span class="info-label">Allarme:</span>
-                                <span class="info-value"><?php echo htmlspecialchars($prodotto['allarme']); ?></span>
-                            </div>
-                        </div>
-                        
-                        <div class="prodotto-descrizione">
-                            <?php echo htmlspecialchars($prodotto['descrizione']); ?>
                         </div>
                     </div>
                 <?php endforeach; ?>
-            </div>
-        <?php endif; ?>
+            <?php else: ?>
+                <div style="text-align: center; padding: 60px 20px;">
+                    <i class="fas fa-box-open" style="font-size: 80px; color: #ddd; margin-bottom: 20px;"></i>
+                    <h3 style="color: #1a1a1a; margin-bottom: 10px;">Nessun gruppo trovato</h3>
+                    <p style="color: #666;">Aggiungi il tuo primo gruppo di prodotti utilizzando il form sopra</p>
+                </div>
+            <?php endif; ?>
+        </div>
     </div>
     
-    <!-- Modal Modifica -->
-    <div class="modal" id="modalModifica">
+    <!-- MODAL MODIFICA GRUPPO PADRE -->
+    <div class="modal" id="modalEditPadre">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>Modifica Prodotto</h3>
-                <button class="modal-close" onclick="closeModal()">×</button>
+                <h3><i class="fas fa-edit"></i> Modifica Gruppo Padre</h3>
+                <button class="modal-close" onclick="closeEditPadreModal()">×</button>
             </div>
-            <form id="formModifica" onsubmit="return showConfirm(event);">
+            <form method="POST" action="" id="formEditPadre">
                 <div class="modal-body">
-                    <input type="hidden" id="edit_id" name="id">
+                    <input type="hidden" id="vecchio_padre" name="vecchio_padre">
+                    <input type="hidden" name="componenti_ids[]" id="componentiIdsContainer">
                     
                     <div class="form-group">
-                        <label for="edit_nome">Nome Prodotto *</label>
-                        <input type="text" id="edit_nome" name="nome" required>
+                        <label for="nuovo_padre"><i class="fas fa-folder"></i> Nome Gruppo *</label>
+                        <input type="text" id="nuovo_padre" name="nuovo_padre" required>
                     </div>
                     
-                    <div class="form-group">
-                        <label for="edit_quantita">Quantità *</label>
-                        <input type="number" id="edit_quantita" name="quantita" min="0" required>
+                    <div style="margin-top: 30px;">
+                        <h4 style="font-size: 18px; font-weight: 700; margin-bottom: 20px; color: #1a1a1a;">
+                            <i class="fas fa-cubes"></i> Componenti
+                        </h4>
+                        <div id="componentiEditContainer"></div>
+                        
+                        <button type="button" class="btn-add-figlio" onclick="addNuovoComponente()">
+                            <i class="fas fa-plus"></i> Aggiungi Nuovo Componente
+                        </button>
                     </div>
                     
-                    <div class="form-group">
-                        <label for="edit_fornitore">Fornitore *</label>
-                        <input type="text" id="edit_fornitore" name="fornitore" required>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="edit_descrizione">Descrizione *</label>
-                        <textarea id="edit_descrizione" name="descrizione" required></textarea>
-                    </div>
+                    <div id="nuoviComponentiContainer"></div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal()">Annulla</button>
-                    <button type="submit" class="btn btn-primary">Salva Modifiche</button>
+                    <button type="button" onclick="closeEditPadreModal()" style="background: #e0e0e0; color: #1a1a1a; padding: 12px 25px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">
+                        Annulla
+                    </button>
+                    <button type="submit" name="modifica_gruppo_padre">
+                        <i class="fas fa-save"></i> Salva Modifiche
+                    </button>
                 </div>
             </form>
         </div>
     </div>
     
     <script>
-        // Popup Functions
-        function showPopup(type, title, message) {
-            const popup = document.getElementById('popupNotification');
-            const icon = document.getElementById('popupIcon');
-            const titleEl = document.getElementById('popupTitle');
-            const messageEl = document.getElementById('popupMessage');
+        let figlioCounter = <?php echo count($componenti_predefiniti); ?>;
+        let nuovoComponenteCounter = 0;
+        
+        // GESTIONE ALERT
+        function showAlert(tipo, messaggio) {
+            const alert = document.getElementById('modernAlert');
+            const icon = document.getElementById('alertIcon');
+            const title = document.getElementById('alertTitle');
+            const message = document.getElementById('alertMessage');
             
-            popup.className = 'popup-notification';
+            alert.className = 'modern-alert ' + tipo;
             
-            if (type === 'success') {
-                popup.classList.add('success');
-                icon.textContent = '✅';
+            if (tipo === 'successo') {
+                icon.innerHTML = '<i class="fas fa-check-circle"></i>';
+                title.textContent = 'Operazione Completata!';
+            } else {
+                icon.innerHTML = '<i class="fas fa-exclamation-circle"></i>';
+                title.textContent = 'Errore!';
             }
             
-            titleEl.textContent = title;
-            messageEl.textContent = message;
+            message.textContent = messaggio;
             
-            setTimeout(() => {
-                popup.classList.add('show');
-            }, 100);
-            
-            setTimeout(() => {
-                closePopup();
-            }, 4000);
+            setTimeout(() => alert.classList.add('show'), 100);
+            setTimeout(() => closeAlert(), 5000);
         }
         
-        function closePopup() {
-            document.getElementById('popupNotification').classList.remove('show');
+        function closeAlert() {
+            document.getElementById('modernAlert').classList.remove('show');
         }
         
         <?php if ($successo): ?>
-            showPopup('success', 'Successo!', '<?php echo addslashes($successo); ?>');
+            const successData = <?php echo $successo; ?>;
+            showAlert(successData.tipo, successData.messaggio);
         <?php endif; ?>
         
-        <?php if ($successo_prod): ?>
-            showPopup('success', 'Prodotto Aggiunto!', '<?php echo addslashes($successo_prod); ?>');
+        <?php if ($errore): ?>
+            const errorData = <?php echo $errore; ?>;
+            showAlert(errorData.tipo, errorData.messaggio);
         <?php endif; ?>
         
-        // Reset form dopo successo inserimento
-        <?php if ($successo_prod): ?>
-            setTimeout(() => {
-                document.getElementById('formProdotto').reset();
-            }, 100);
-        <?php endif; ?>
-        
-        // Toggle Sidebar
-        const menuToggle = document.getElementById('menuToggle');
-        const sidebar = document.getElementById('sidebar');
-        const overlay = document.getElementById('overlay');
-        
-        function toggleSidebar() {
-            const isActive = sidebar.classList.contains('active');
+        // TOGGLE FORM SECTION
+        function toggleFormSection() {
+            const content = document.getElementById('formContent');
+            const icon = document.getElementById('formToggleIcon');
             
-            if (isActive) {
-                sidebar.classList.remove('active');
-                overlay.classList.remove('active');
-                document.body.style.overflow = '';
+            if (content.classList.contains('expanded')) {
+                content.classList.remove('expanded');
+                icon.classList.add('collapsed');
             } else {
-                sidebar.classList.add('active');
-                overlay.classList.add('active');
-                document.body.style.overflow = 'hidden';
+                content.classList.add('expanded');
+                icon.classList.remove('collapsed');
             }
         }
         
-        menuToggle.addEventListener('click', function(e) {
-            e.stopPropagation();
-            toggleSidebar();
-        });
-        
-        overlay.addEventListener('click', toggleSidebar);
-        
-        // Modal Functions
-        const modal = document.getElementById('modalModifica');
-        
-        function openModal(prodotto) {
-            document.getElementById('edit_id').value = prodotto.id;
-            document.getElementById('edit_nome').value = prodotto.nome;
-            document.getElementById('edit_quantita').value = prodotto.quantita;
-            document.getElementById('edit_fornitore').value = prodotto.fornitore;
-            document.getElementById('edit_descrizione').value = prodotto.descrizione;
+        // AGGIUNGI FIGLIO
+        function addFiglio() {
+            const container = document.getElementById('figliContainer');
+            const newIndex = figlioCounter;
             
-            modal.classList.add('active');
-            document.body.style.overflow = 'hidden';
+            const newFiglio = document.createElement('div');
+            newFiglio.className = 'figlio-item';
+            newFiglio.setAttribute('data-index', newIndex);
+            newFiglio.innerHTML = `
+                <div class="figlio-header-row">
+                    <span class="figlio-numero">Componente #${newIndex + 1}</span>
+                    <button type="button" class="btn-remove-figlio" onclick="removeFiglio(${newIndex})">×</button>
+                </div>
+                <div class="figlio-grid">
+                    <div class="form-group">
+                        <label>Nome Prodotto *</label>
+                        <input type="text" name="nome_${newIndex}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Quantità *</label>
+                        <input type="number" name="quantita_${newIndex}" min="0" value="0" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Minimo *</label>
+                        <input type="number" name="minimo_${newIndex}" min="0" value="0" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Fornitore</label>
+                        <input type="text" name="fornitore_${newIndex}">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Descrizione</label>
+                    <textarea name="descrizione_${newIndex}"></textarea>
+                </div>
+            `;
+            
+            container.appendChild(newFiglio);
+            figlioCounter++;
+            newFiglio.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
         
-        function closeModal() {
-            modal.classList.remove('active');
-            document.body.style.overflow = '';
-        }
-        
-        // Confirm Dialog Functions
-        const confirmDialog = document.getElementById('confirmDialog');
-        const confirmDeleteDialog = document.getElementById('confirmDeleteDialog');
-        let pendingForm = null;
-        let pendingDeleteId = null;
-        
-        function showConfirm(event) {
-            event.preventDefault();
-            pendingForm = event.target;
-            confirmDialog.classList.add('active');
-            return false;
-        }
-        
-        function closeConfirm() {
-            confirmDialog.classList.remove('active');
-            pendingForm = null;
-        }
-        
-        function confirmModifica() {
-            if (pendingForm) {
-                const formData = new FormData(pendingForm);
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = '';
-                
-                for (let [key, value] of formData.entries()) {
-                    const input = document.createElement('input');
-                    input.type = 'hidden';
-                    input.name = key;
-                    input.value = value;
-                    form.appendChild(input);
-                }
-                
-                const modifyInput = document.createElement('input');
-                modifyInput.type = 'hidden';
-                modifyInput.name = 'modifica_prodotto';
-                modifyInput.value = '1';
-                form.appendChild(modifyInput);
-                
-                document.body.appendChild(form);
-                form.submit();
+        // RIMUOVI FIGLIO
+        function removeFiglio(index) {
+            const figlio = document.querySelector(`.figlio-item[data-index="${index}"]`);
+            if (figlio) {
+                figlio.style.animation = 'fadeOut 0.3s ease';
+                setTimeout(() => figlio.remove(), 300);
             }
         }
         
-        // Delete Functions
-        function showDeleteConfirm(id, nome) {
-            pendingDeleteId = id;
-            const message = document.getElementById('deleteMessage');
-            message.textContent = 'Sei sicuro di voler eliminare "' + nome + '"? Questa azione è irreversibile!';
-            confirmDeleteDialog.classList.add('active');
+        // TOGGLE FIGLI LIST
+        function toggleFigliList(header) {
+            const padreGroup = header.closest('.padre-group');
+            const figliList = padreGroup.querySelector('.figli-list');
+            
+            if (figliList.classList.contains('expanded')) {
+                figliList.classList.remove('expanded');
+            } else {
+                figliList.classList.add('expanded');
+            }
         }
         
-        function closeDeleteConfirm() {
-            confirmDeleteDialog.classList.remove('active');
-            pendingDeleteId = null;
+        // MODAL MODIFICA PADRE
+        function openEditPadreModal(padreName, figli) {
+            document.getElementById('vecchio_padre').value = padreName;
+            document.getElementById('nuovo_padre').value = padreName;
+            
+            const container = document.getElementById('componentiEditContainer');
+            const idsContainer = document.getElementById('componentiIdsContainer');
+            container.innerHTML = '';
+            idsContainer.innerHTML = '';
+            
+            figli.forEach((prod, index) => {
+                if (prod.nome === prod.padre) return;
+                
+                const div = document.createElement('div');
+                div.className = 'figlio-item';
+                div.style.marginBottom = '20px';
+                div.innerHTML = `
+                    <input type="hidden" name="componenti_ids[]" value="${prod.id}">
+                    <div class="figlio-header-row">
+                        <span class="figlio-numero">Componente #${index}</span>
+                        <label style="display: flex; align-items: center; gap: 8px; color: #ff4444; font-weight: 600; cursor: pointer;">
+                            <input type="checkbox" name="elimina_componenti[]" value="${prod.id}" style="width: 20px; height: 20px;">
+                            Elimina
+                        </label>
+                    </div>
+                    <div class="figlio-grid">
+                        <div class="form-group">
+                            <label>Nome Prodotto *</label>
+                            <input type="text" name="comp_nome_${prod.id}" value="${prod.nome}" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Quantità *</label>
+                            <input type="number" name="comp_quantita_${prod.id}" value="${prod.quantita}" min="0" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Minimo *</label>
+                            <input type="number" name="comp_minimo_${prod.id}" value="${prod.minimo || 0}" min="0" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Fornitore</label>
+                            <input type="text" name="comp_fornitore_${prod.id}" value="${prod.fornitore}">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Descrizione</label>
+                        <textarea name="comp_descrizione_${prod.id}">${prod.descrizione}</textarea>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+            
+            document.getElementById('nuoviComponentiContainer').innerHTML = '';
+            nuovoComponenteCounter = 0;
+            
+            document.getElementById('modalEditPadre').classList.add('active');
         }
         
-        function confirmDelete() {
-            if (pendingDeleteId) {
+        function closeEditPadreModal() {
+            document.getElementById('modalEditPadre').classList.remove('active');
+        }
+        
+        // AGGIUNGI NUOVO COMPONENTE IN MODALE
+        function addNuovoComponente() {
+            const container = document.getElementById('nuoviComponentiContainer');
+            const index = nuovoComponenteCounter;
+            
+            const div = document.createElement('div');
+            div.className = 'figlio-item';
+            div.style.marginTop = '20px';
+            div.innerHTML = `
+                <input type="hidden" name="nuovi_componenti[]" value="${index}">
+                <div class="figlio-header-row">
+                    <span class="figlio-numero" style="color: #4CAF50;">Nuovo Componente #${index + 1}</span>
+                    <button type="button" class="btn-remove-figlio" onclick="this.closest('.figlio-item').remove()">×</button>
+                </div>
+                <div class="figlio-grid">
+                    <div class="form-group">
+                        <label>Nome Prodotto *</label>
+                        <input type="text" name="nuovo_nome_${index}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Quantità *</label>
+                        <input type="number" name="nuovo_quantita_${index}" value="0" min="0" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Minimo *</label>
+                        <input type="number" name="nuovo_minimo_${index}" value="0" min="0" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Fornitore</label>
+                        <input type="text" name="nuovo_fornitore_${index}">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Descrizione</label>
+                    <textarea name="nuovo_descrizione_${index}"></textarea>
+                </div>
+            `;
+            
+            container.appendChild(div);
+            nuovoComponenteCounter++;
+            div.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        
+        // CONFERMA ELIMINAZIONE PADRE
+        function confirmDeletePadre(padreName, numComponenti) {
+            if (confirm(`⚠️ ATTENZIONE!\n\nStai per eliminare il gruppo "${padreName}" e tutti i suoi ${numComponenti} componenti.\n\nQuesta azione è IRREVERSIBILE!\n\nVuoi continuare?`)) {
                 const form = document.createElement('form');
                 form.method = 'POST';
                 form.action = '';
                 
-                const idInput = document.createElement('input');
-                idInput.type = 'hidden';
-                idInput.name = 'id';
-                idInput.value = pendingDeleteId;
-                form.appendChild(idInput);
+                const padreInput = document.createElement('input');
+                padreInput.type = 'hidden';
+                padreInput.name = 'padre_nome';
+                padreInput.value = padreName;
+                form.appendChild(padreInput);
                 
                 const deleteInput = document.createElement('input');
                 deleteInput.type = 'hidden';
-                deleteInput.name = 'elimina_prodotto';
+                deleteInput.name = 'elimina_padre';
                 deleteInput.value = '1';
                 form.appendChild(deleteInput);
                 
@@ -1388,151 +1415,29 @@ try {
             }
         }
         
-        // Close modal on ESC key
-        document.addEventListener('keydown', function(e) {
+        // CHIUDI MODAL CON ESC
+        document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
-                if (confirmDeleteDialog.classList.contains('active')) {
-                    closeDeleteConfirm();
-                } else if (confirmDialog.classList.contains('active')) {
-                    closeConfirm();
-                } else if (modal.classList.contains('active')) {
-                    closeModal();
-                }
+                closeEditPadreModal();
             }
         });
         
-        // Click outside modal to close
-        modal.addEventListener('click', function(e) {
-            if (e.target === modal) {
-                closeModal();
+        // CHIUDI MODAL CLICCANDO FUORI
+        document.getElementById('modalEditPadre').addEventListener('click', (e) => {
+            if (e.target.id === 'modalEditPadre') {
+                closeEditPadreModal();
             }
         });
         
-        confirmDialog.addEventListener('click', function(e) {
-            if (e.target === confirmDialog) {
-                closeConfirm();
+        // ANIMAZIONE FADEOUT
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes fadeOut {
+                from { opacity: 1; transform: scale(1); }
+                to { opacity: 0; transform: scale(0.8); }
             }
-        });
-        
-        confirmDeleteDialog.addEventListener('click', function(e) {
-            if (e.target === confirmDeleteDialog) {
-                closeDeleteConfirm();
-            }
-        });
-        
-        // Search functionality
-        const searchInput = document.getElementById('searchInput');
-        const clearSearchBtn = document.getElementById('clearSearch');
-        const searchResultsInfo = document.getElementById('searchResultsInfo');
-        const totalCount = document.getElementById('totalCount');
-        const noResults = document.getElementById('noResults');
-        const prodottiGrid = document.getElementById('prodottiGrid');
-        const prodottiCards = document.querySelectorAll('.prodotto-card');
-        const totalProdotti = prodottiCards.length;
-        
-        if (searchInput) {
-            searchInput.addEventListener('input', function() {
-                const searchTerm = this.value.toLowerCase().trim();
-                
-                if (searchTerm.length > 0) {
-                    clearSearchBtn.classList.add('active');
-                } else {
-                    clearSearchBtn.classList.remove('active');
-                }
-                
-                filterProducts(searchTerm);
-            });
-            
-            searchInput.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                }
-            });
-        }
-        
-        function filterProducts(searchTerm) {
-            let visibleCount = 0;
-            
-            prodottiCards.forEach(card => {
-                const nome = card.getAttribute('data-nome') || '';
-                const descrizione = card.getAttribute('data-descrizione') || '';
-                const fornitore = card.getAttribute('data-fornitore') || '';
-                
-                const matches = nome.includes(searchTerm) || 
-                               descrizione.includes(searchTerm) || 
-                               fornitore.includes(searchTerm);
-                
-                if (searchTerm === '' || matches) {
-                    card.classList.remove('hidden');
-                    visibleCount++;
-                } else {
-                    card.classList.add('hidden');
-                }
-            });
-            
-            updateSearchResults(searchTerm, visibleCount);
-        }
-        
-        function updateSearchResults(searchTerm, visibleCount) {
-            if (searchTerm === '') {
-                searchResultsInfo.classList.remove('active');
-                totalCount.textContent = totalProdotti + ' Prodotti';
-                noResults.classList.remove('active');
-                if (prodottiGrid) prodottiGrid.style.display = 'grid';
-            } else {
-                searchResultsInfo.classList.add('active');
-                totalCount.textContent = visibleCount + ' di ' + totalProdotti;
-                
-                if (visibleCount === 0) {
-                    searchResultsInfo.textContent = 'Nessun prodotto trovato per "' + searchTerm + '"';
-                    noResults.classList.add('active');
-                    if (prodottiGrid) prodottiGrid.style.display = 'none';
-                } else {
-                    searchResultsInfo.textContent = 'Trovati ' + visibleCount + ' prodotti';
-                    noResults.classList.remove('active');
-                    if (prodottiGrid) prodottiGrid.style.display = 'grid';
-                }
-            }
-        }
-        
-        function clearSearch() {
-            searchInput.value = '';
-            clearSearchBtn.classList.remove('active');
-            filterProducts('');
-            searchInput.focus();
-        }
-        
-        // Validazione form prodotto
-        document.getElementById('formProdotto').addEventListener('submit', function(e) {
-            const nome = document.getElementById('nome').value.trim();
-            const descrizione = document.getElementById('descrizione').value.trim();
-            const quantita = document.getElementById('quantita').value;
-            const fornitore = document.getElementById('fornitore').value.trim();
-            
-            if (!nome || !descrizione || !fornitore) {
-                e.preventDefault();
-                alert('Compila tutti i campi obbligatori!');
-                return;
-            }
-            
-            if (quantita < 0) {
-                e.preventDefault();
-                alert('La quantità non può essere negativa!');
-                return;
-            }
-        });
-        
-        // Animazione input
-        const inputs = document.querySelectorAll('input, textarea');
-        inputs.forEach(input => {
-            input.addEventListener('focus', function() {
-                this.parentElement.style.transform = 'translateX(3px)';
-                this.parentElement.style.transition = 'transform 0.2s';
-            });
-            input.addEventListener('blur', function() {
-                this.parentElement.style.transform = 'translateX(0)';
-            });
-        });
+        `;
+        document.head.appendChild(style);
     </script>
 </body>
 </html>
