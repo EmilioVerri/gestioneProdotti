@@ -35,6 +35,7 @@ $tipoFiltro = isset($_GET['tipo_filtro']) ? $_GET['tipo_filtro'] : 'tutti';
 $prodottoFiltro = isset($_GET['prodotto_filtro']) ? $_GET['prodotto_filtro'] : '';
 $dataInizio = isset($_GET['data_inizio']) ? $_GET['data_inizio'] : '';
 $dataFine = isset($_GET['data_fine']) ? $_GET['data_fine'] : '';
+$padreFiltro = isset($_GET['padre_filtro']) ? $_GET['padre_filtro'] : '';
 $paginaCorrente = isset($_GET['pagina']) ? max(1, intval($_GET['pagina'])) : 1;
 $righePerPagina = 50;
 $offset = ($paginaCorrente - 1) * $righePerPagina;
@@ -68,6 +69,11 @@ if ($dataFine) {
     // Converti la data dal formato gg/mm/aaaa hh:mm al formato aaaa-mm-gg per il confronto
     $query .= " AND STR_TO_DATE(SUBSTRING(dataMovimento, 1, 10), '%d/%m/%Y') <= ?";
     $params[] = $dataFine;
+}
+// Filtro per idPadre
+if ($padreFiltro) {
+    $query .= " AND idPadre LIKE ?";
+    $params[] = '%' . $padreFiltro . '%';
 }
 // Conta totale righe per paginazione
 $queryCount = str_replace("SELECT *", "SELECT COUNT(*) as total", $query);
@@ -121,7 +127,7 @@ try {
 
 // Funzione helper per costruire URL con parametri
 function buildUrlParams($pagina = null) {
-    global $tipoFiltro, $prodottoFiltro, $dataInizio, $dataFine;
+    global $tipoFiltro, $prodottoFiltro, $dataInizio, $dataFine, $padreFiltro; // Aggiungi $padreFiltro
     $params = [];
     
     if ($pagina !== null) {
@@ -138,6 +144,9 @@ function buildUrlParams($pagina = null) {
     }
     if ($dataFine) {
         $params[] = 'data_fine=' . urlencode($dataFine);
+    }
+    if ($padreFiltro) {
+        $params[] = 'padre_filtro=' . urlencode($padreFiltro); // NUOVO
     }
     
     return !empty($params) ? '?' . implode('&', $params) : '';
@@ -884,6 +893,11 @@ function buildUrlParams($pagina = null) {
                         <label for="data_fine">📅 Data Fine</label>
                         <input type="date" id="data_fine" name="data_fine" value="<?php echo htmlspecialchars($dataFine); ?>">
                     </div>
+
+                    <div class="filter-group">
+    <label for="padre_filtro">🔗 ID Padre</label>
+    <input type="text" id="padre_filtro" name="padre_filtro" placeholder="Cerca per ID Padre..." value="<?php echo htmlspecialchars($padreFiltro); ?>">
+</div>
                 </div>
                 
                 <div class="filter-buttons">
@@ -913,6 +927,7 @@ function buildUrlParams($pagina = null) {
                                 <th>NUMERO ISTA TAGLIO</th>
                                 <th>NUMERO OFFERTA</th>
                                 <th>Descrizione</th>
+                                <th>Padre</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -935,6 +950,7 @@ function buildUrlParams($pagina = null) {
                                     <td><?php echo htmlspecialchars($mov['bollaNumero'] ?: '-'); ?></td>
                                     <td><?php echo htmlspecialchars($mov['datoNumero'] ?: '-'); ?></td>
                                     <td><?php echo htmlspecialchars($mov['descrizione'] ?: '-'); ?></td>
+                                    <td><?php echo htmlspecialchars($mov['idPadre'] ?: '-'); ?></td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
@@ -1092,6 +1108,10 @@ function buildUrlParams($pagina = null) {
             doc.text('Data Fine: <?php echo htmlspecialchars($dataFine); ?>', 14, yPos);
             yPos += 6;
             <?php endif; ?>
+            <?php if ($padreFiltro): ?>
+doc.text('ID Padre: <?php echo htmlspecialchars($padreFiltro); ?>', 14, yPos);
+yPos += 6;
+<?php endif; ?>
             
             doc.text('Data generazione: ' + new Date().toLocaleString('it-IT'), 14, yPos);
             doc.text('Totale movimenti: ' + movimentiData.length, 200, yPos);
@@ -1127,7 +1147,7 @@ function buildUrlParams($pagina = null) {
             
             doc.autoTable({
                 startY: yPos,
-                head: [['ID', 'Data/Ora', 'Prodotto', 'Tipo', 'Qta', 'Utente', 'Bolla', 'datoNumero', 'Descrizione']],
+                head: [['ID', 'Data/Ora', 'Prodotto', 'Tipo', 'Qta', 'Utente', 'Bolla', 'datoNumero', 'Descrizione','Padre']],
                 body: tableData,
                 styles: {
                     fontSize: 7,

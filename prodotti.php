@@ -274,13 +274,133 @@ $componenti_predefiniti = [
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
             z-index: 998;
         }
+
+        /* Sidebar */
+.sidebar {
+    position: fixed;
+    left: -280px;
+    top: 0;
+    width: 280px;
+    height: 100vh;
+    background: #1a1a1a;
+    transition: left 0.3s ease;
+    z-index: 1000;
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar.active {
+    left: 0;
+}
+
+.sidebar-header {
+    padding: 30px 20px;
+    border-bottom: 1px solid #333;
+    text-align: center;
+}
+
+.sidebar-logo {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #ffffff 0%, #e0e0e0 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 15px;
+    font-size: 36px;
+    font-weight: bold;
+    color: #1a1a1a;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar-title {
+    color: white;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.sidebar-menu {
+    padding: 20px 0;
+}
+
+.menu-item {
+    padding: 15px 25px;
+    color: white;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    cursor: pointer;
+    transition: all 0.3s;
+    border-left: 3px solid transparent;
+    text-decoration: none;
+}
+
+.menu-item:hover {
+    background: #2d2d2d;
+    border-left-color: white;
+    transform: translateX(5px);
+}
+
+.menu-item.active {
+    background: #2d2d2d;
+    border-left-color: white;
+}
+
+.menu-icon {
+    font-size: 24px;
+    width: 30px;
+    text-align: center;
+}
+
+.menu-text {
+    font-size: 15px;
+}
+
+/* Overlay */
+.overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+    z-index: 999;
+}
+
+.overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.menu-toggle {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 5px 10px;
+    transition: all 0.3s;
+    border-radius: 5px;
+}
+
+.menu-toggle:hover {
+    background: #2d2d2d;
+    transform: scale(1.05);
+}
         
         .navbar-left {
             display: flex;
             align-items: center;
             gap: 20px;
         }
-        
+        .user-info {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
         .navbar-logo {
             width: 45px;
             height: 45px;
@@ -832,168 +952,92 @@ $componenti_predefiniti = [
         <button class="alert-close" onclick="closeAlert()">×</button>
     </div>
     
-    <!-- NAVBAR -->
-    <nav class="navbar">
-       <div class="navbar-left">
-    <button class="hamburger-btn" onclick="toggleMenu()">
-        <i class="fas fa-bars"></i>
-    </button>
+  <!-- Overlay -->
+<div class="overlay" id="overlay"></div>
 
-    <div class="navbar-logo">GP</div>
-    <h1>Gestione Prodotti</h1>
+<!-- Sidebar -->
+<div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+        <div class="sidebar-logo">GP</div>
+        <div class="sidebar-title">Gestione Prodotti</div>
+    </div>
+
+    <div class="sidebar-menu">
+        <a href="dashboard.php" class="menu-item">
+            <span class="menu-icon">🏠</span>
+            <span class="menu-text">Dashboard</span>
+        </a>
+        <a href="pagina_controllo.php" class="menu-item">
+            <span class="menu-icon">⚙️</span>
+            <span class="menu-text">Pagina di Controllo</span>
+        </a>
+        <a href="prodotti.php" class="menu-item active">
+            <span class="menu-icon">📦</span>
+            <span class="menu-text">Modifica Prodotti</span>
+        </a>
+        <a href="entrateUscite.php" class="menu-item">
+            <span class="menu-icon">🏷️</span>
+            <span class="menu-text">Registra Entrate/Uscite</span>
+        </a>
+        <a href="storicoEntrateUscite.php" class="menu-item">
+            <span class="menu-icon">📈</span>
+            <span class="menu-text">Storico Entrate/Uscite</span>
+        </a>
+    </div>
 </div>
 
-    </nav>
+<!-- Navbar -->
+<nav class="navbar">
+    <div class="navbar-left">
+        <button class="menu-toggle" id="menuToggle">☰</button>
+        <div class="navbar-logo">GP</div>
+        <h1>Gestione Prodotti</h1>
+    </div>
+    <div class="user-info">
+        <span>Benvenuto, <strong><?php echo htmlspecialchars($username); ?></strong></span>
+        <a href="./logout.php" class="btn-logout">Logout</a>
+    </div>
+</nav>
 <script>
-    function toggleMenu() {
-    document.getElementById('sideMenu').classList.toggle('active');
-    document.getElementById('menuOverlay').classList.toggle('active');
+ // Toggle Sidebar
+const menuToggle = document.getElementById('menuToggle');
+const sidebar = document.getElementById('sidebar');
+const overlay = document.getElementById('overlay');
+
+function toggleSidebar() {
+    const isActive = sidebar.classList.contains('active');
+    
+    if (isActive) {
+        sidebar.classList.remove('active');
+        overlay.classList.remove('active');
+        document.body.style.overflow = '';
+    } else {
+        sidebar.classList.add('active');
+        overlay.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
 }
+
+menuToggle.addEventListener('click', function(e) {
+    e.stopPropagation();
+    toggleSidebar();
+});
+
+overlay.addEventListener('click', toggleSidebar);
+
+// Menu items
+const menuItems = document.querySelectorAll('.menu-item');
+menuItems.forEach(item => {
+    item.addEventListener('click', function() {
+        if (window.innerWidth <= 768) {
+            toggleSidebar();
+        }
+    });
+});
 
 </script>
 
-    <style>
-        /* HAMBURGER */
-.navbar-right {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-}
 
-.welcome-text {
-    font-size: 14px;
-}
-
-.hamburger-btn {
-    background: none;
-    border: none;
-    color: white;
-    font-size: 26px;
-    cursor: pointer;
-}
-
-/* SIDE MENU */
-.side-menu {
-    position: fixed;
-    top: 0;
-    left: -320px;
-    width: 300px;
-    height: 100%;
- background: #ffffff;
-    color: #1a1a1a;
-    z-index: 10001;
-    transition: right 0.4s ease;
-    padding: 30px 20px;
-    box-shadow: -10px 0 30px rgba(0,0,0,0.5);
-}
-
-.side-menu.active {
-    left: 0;
-}
-
-.close-menu {
-    background: none;
-    border: none;
-    color: white;
-    font-size: 34px;
-    cursor: pointer;
-    position: absolute;
-    left: 20px;
-    right: 20px;
-}
-
-.menu-list {
-    list-style: none;
-    margin-top: 60px;
-    padding: 0;
-}
-
-.menu-list li {
-    margin-bottom: 15px;
-}
-
-.menu-list a {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 14px 18px;
-    border-radius: 10px;
-    text-decoration: none;
-    color: #1a1a1a;
-    font-size: 16px;
-    transition: background 0.3s;
-}
-
-.menu-list a:hover,
-.menu-list a.active {
-    background: #f0f2f8;
-}
-
-
-.menu-list .logout {
-    background: linear-gradient(135deg, #ff4444, #cc0000);
-}
-
-.divider {
-    height: 1px;
-    background: rgba(255,255,255,0.2);
-    margin: 20px 0;
-}
-
-/* OVERLAY */
-.menu-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.6);
-    z-index: 10000;
-    display: none;
-}
-
-.menu-overlay.active {
-    display: block;
-}
-
-    </style>
-    <!-- MENU HAMBURGER -->
-<div class="side-menu" id="sideMenu">
-    <button class="close-menu" onclick="toggleMenu()">×</button>
-
-    <ul class="menu-list">
-        <li>
-            <a href="dashboard.php">
-                🏠 <span>Dashboard</span>
-            </a>
-        </li>
-        <li>
-            <a href="pagina_controllo.php">
-                ⚙️ <span>Pagina di Controllo</span>
-            </a>
-        </li>
-        <li>
-            <a href="prodotti.php" class="active">
-                📦 <span>Modifica Prodotti</span>
-            </a>
-        </li>
-        <li>
-            <a href="movimenti.php">
-                🏷️ <span>Registra Entrate/Uscite</span>
-            </a>
-        </li>
-        <li>
-            <a href="storico.php">
-                📈 <span>Storico Entrate/Uscite</span>
-            </a>
-        </li>
-        <li class="divider"></li>
-        <li>
-            <a href="logout.php" class="logout">
-                🚪 <span>Logout</span>
-            </a>
-        </li>
-    </ul>
-</div>
-
-<div class="menu-overlay" id="menuOverlay" onclick="toggleMenu()"></div>
     
     <!-- CONTAINER -->
     <div class="container">
@@ -1076,7 +1120,7 @@ $componenti_predefiniti = [
                             <div class="padre-title">
                                 <i class="fas fa-folder-open"></i>
                                 <?php echo htmlspecialchars($padre); ?>
-                                <span class="padre-badge"><?php echo count($figli) - 1; ?> componenti</span>
+                                <span class="padre-badge"><?php echo count($figli); ?> componenti</span>
                             </div>
                             <div class="padre-actions" onclick="event.stopPropagation()">
                                 <button class="btn-edit-padre" onclick="openEditPadreModal('<?php echo htmlspecialchars($padre, ENT_QUOTES); ?>', <?php echo htmlspecialchars(json_encode($figli)); ?>)" title="Modifica gruppo">
