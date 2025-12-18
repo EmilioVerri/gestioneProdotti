@@ -965,7 +965,7 @@ $componenti_predefiniti = [
             </a>
         </li>
         <li>
-            <a href="pagine_controllo.php">
+            <a href="pagina_controllo.php">
                 ⚙️ <span>Pagina di Controllo</span>
             </a>
         </li>

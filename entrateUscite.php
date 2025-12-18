@@ -45,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registra_movimento'])
     if ($idProdotto > 0 && $quantitaMovimento > 0) {
         try {
             // Ottieni il prodotto corrente
-            $stmt = $pdo->prepare("SELECT id, nome, quantita FROM prodotti WHERE id = ?");
+            $stmt = $pdo->prepare("SELECT id, nome, quantita, padre FROM prodotti WHERE id = ?");
             $stmt->execute([$idProdotto]);
             $prodotto = $stmt->fetch(PDO::FETCH_ASSOC);
             
@@ -62,14 +62,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registra_movimento'])
                     $stmt = $pdo->prepare("UPDATE prodotti SET quantita = ? WHERE id = ?");
                     $stmt->execute([$nuovaQuantita, $idProdotto]);
                     
-                    // Aggiorna campo allarme se quantità < 5
-                    $allarme = ($nuovaQuantita < 5) ? 'attivo' : 'nessuno';
+                    // Ottieni il minimo del prodotto
+                    $stmt = $pdo->prepare("SELECT minimo FROM prodotti WHERE id = ?");
+                    $stmt->execute([$idProdotto]);
+                    $minimo = $stmt->fetchColumn();
+                    
+                    // Aggiorna campo allarme se quantità < minimo
+                    $allarme = ($nuovaQuantita < $minimo) ? 'attivo' : 'nessuno';
                     $stmt = $pdo->prepare("UPDATE prodotti SET allarme = ? WHERE id = ?");
                     $stmt->execute([$allarme, $idProdotto]);
                     
                     // Inserisci il movimento nello storico
                     $dataMovimento = date('d/m/Y H:i');
-                    $stmt = $pdo->prepare("INSERT INTO storicomovimenti (idProdotto, movimento, idUtente, descrizione, dataMovimento, bollaNumero, datoNumero) VALUES (?, ?, ?, ?, ?, ?,?)");
+                    $stmt = $pdo->prepare("INSERT INTO storicomovimenti (idProdotto, movimento, idUtente, descrizione, dataMovimento, bollaNumero, datoNumero, idPadre) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
                     $stmt->execute([
                         $prodotto['nome'],
                         $movimento,
@@ -77,7 +82,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registra_movimento'])
                         $descrizioneMovimento,
                         $dataMovimento,
                         $numeroBolla,
-                        $numeroDato
+                        $numeroDato,
+                        $prodotto['padre']
                     ]);
                     
                     $tipoMsg = ($tipoMovimento === 'entrata') ? 'Entrata' : 'Uscita';
@@ -94,18 +100,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registra_movimento'])
     }
 }
 
-// Carica tutti i prodotti - prima quelli con quantità < 5, poi gli altri
+// Carica tutti i gruppi padre
 try {
-    $stmt = $pdo->query("SELECT * FROM prodotti ORDER BY CASE WHEN quantita < 5 THEN 0 ELSE 1 END, nome ASC");
-    $prodotti = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $stmt = $pdo->query("SELECT DISTINCT padre FROM prodotti WHERE padre IS NOT NULL AND padre != '' ORDER BY padre ASC");
+    $gruppiPadre = $stmt->fetchAll(PDO::FETCH_COLUMN);
 } catch (PDOException $e) {
-    $prodotti = [];
+    $gruppiPadre = [];
+}
+
+// Carica tutti i prodotti raggruppati per padre
+$prodotti_per_padre = [];
+try {
+    $stmt = $pdo->query("SELECT * FROM prodotti WHERE padre IS NOT NULL AND padre != '' ORDER BY padre ASC, nome ASC");
+    $prodotti = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    foreach ($prodotti as $prodotto) {
+        // Escludi il prodotto padre stesso
+        if ($prodotto['nome'] === $prodotto['padre']) continue;
+        
+        $padre = $prodotto['padre'];
+        if (!isset($prodotti_per_padre[$padre])) {
+            $prodotti_per_padre[$padre] = [];
+        }
+        $prodotti_per_padre[$padre][] = $prodotto;
+    }
+} catch (PDOException $e) {
+    $prodotti_per_padre = [];
 }
 
 // Conta prodotti con allarme
-$prodottiAllarme = array_filter($prodotti, function($p) {
-    return $p['allarme'] === 'attivo' || $p['quantita'] < 5;
-});
+$prodottiAllarme = [];
+foreach ($prodotti_per_padre as $padre => $figli) {
+    foreach ($figli as $p) {
+        if ($p['allarme'] === 'attivo' || $p['quantita'] < $p['minimo']) {
+            $prodottiAllarme[] = $p;
+        }
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="it">
@@ -113,6 +144,7 @@ $prodottiAllarme = array_filter($prodotti, function($p) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Entrate/Uscite - Gestione Prodotti</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -205,17 +237,6 @@ $prodottiAllarme = array_filter($prodotti, function($p) {
         
         .menu-text {
             font-size: 15px;
-        }
-        
-        .sidebar-footer {
-            position: absolute;
-            bottom: 0;
-            width: 100%;
-            padding: 20px;
-            border-top: 1px solid #333;
-            color: #999;
-            font-size: 12px;
-            text-align: center;
         }
         
         /* Overlay */
@@ -418,13 +439,14 @@ $prodottiAllarme = array_filter($prodotti, function($p) {
             color: #666;
         }
         
-        /* Form Section */
+        /* Section Card */
         .section-card {
             background: white;
             padding: 35px;
             border-radius: 10px;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             animation: slideUp 0.5s ease;
+            margin-bottom: 30px;
         }
         
         @keyframes slideUp {
@@ -456,237 +478,121 @@ $prodottiAllarme = array_filter($prodotti, function($p) {
             font-size: 22px;
         }
         
-        .form-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
+        /* Padre Groups */
+        .padre-group {
             margin-bottom: 20px;
-        }
-        
-        .form-group {
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .form-group.full-width {
-            grid-column: 1 / -1;
-        }
-        
-        label {
-            display: block;
-            margin-bottom: 8px;
-            color: #1a1a1a;
-            font-weight: 500;
-            font-size: 14px;
-        }
-        
-        select,
-        input[type="number"],
-        input[type="text"],
-        textarea {
-            width: 100%;
-            padding: 12px 15px;
             border: 2px solid #e0e0e0;
-            border-radius: 5px;
-            font-size: 15px;
+            border-radius: 12px;
+            overflow: hidden;
             transition: all 0.3s;
-            background: #f9f9f9;
-            font-family: inherit;
         }
         
-        textarea {
-            resize: vertical;
-            min-height: 80px;
-        }
-        
-        select:focus,
-        input:focus,
-        textarea:focus {
-            outline: none;
+        .padre-group:hover {
             border-color: #1a1a1a;
-            background: white;
-            transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
         
-        .tipo-movimento-group {
+        .padre-header {
+            background: linear-gradient(135deg, #f8f9ff 0%, #ffffff 100%);
+            padding: 20px;
+            cursor: pointer;
             display: flex;
-            gap: 15px;
-            margin-bottom: 20px;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s;
         }
         
-        .radio-option {
-            flex: 1;
-            position: relative;
+        .padre-header:hover {
+            background: linear-gradient(135deg, #f0f2f8 0%, #f8f9ff 100%);
         }
         
-        .radio-option input[type="radio"] {
-            position: absolute;
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-        
-        .radio-label {
+        .padre-title {
             display: flex;
             align-items: center;
-            justify-content: center;
-            gap: 10px;
-            padding: 15px;
+            gap: 12px;
+            font-size: 20px;
+            font-weight: 700;
+            color: #1a1a1a;
+        }
+        
+        .padre-badge {
+            background: #1a1a1a;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        
+        .padre-toggle {
+            font-size: 24px;
+            transition: transform 0.3s;
+            color: #1a1a1a;
+        }
+        
+        .padre-toggle.expanded {
+            transform: rotate(180deg);
+        }
+        
+        .padre-content {
+            display: none;
+            padding: 20px;
+            background: #fafafa;
+        }
+        
+        .padre-content.expanded {
+            display: block;
+        }
+        
+        .prodotti-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+        }
+        
+        .prodotto-card {
+            background: white;
             border: 2px solid #e0e0e0;
             border-radius: 8px;
-            cursor: pointer;
+            padding: 15px;
             transition: all 0.3s;
-            background: #f9f9f9;
-            font-weight: 600;
         }
         
-        .radio-option input[type="radio"]:checked + .radio-label {
+        .prodotto-card:hover {
             border-color: #1a1a1a;
-            background: #1a1a1a;
-            color: white;
-            transform: scale(1.05);
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
         }
         
-        .radio-label:hover {
-            border-color: #666;
+        .prodotto-card.allarme {
+            border-color: #ff6b6b;
+            background: #fff5f5;
         }
         
-        .radio-icon {
-            font-size: 24px;
-        }
-        
-        button[type="submit"] {
-            background: #1a1a1a;
-            color: white;
-            padding: 14px 30px;
-            border: none;
-            border-radius: 5px;
+        .prodotto-nome {
             font-size: 16px;
             font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-            width: 100%;
-        }
-        
-        button[type="submit"]:hover {
-            background: #000;
-            transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
-        }
-        
-        .messaggio {
-            padding: 12px 20px;
-            border-radius: 5px;
-            margin-bottom: 20px;
-            animation: fadeIn 0.5s;
-            font-size: 14px;
-        }
-        
-        .errore {
-            background: #ffe6e6;
-            color: #cc0000;
-            border: 1px solid #ff9999;
-        }
-        
-        .successo {
-            background: #e6ffe6;
-            color: #006600;
-            border: 1px solid #99ff99;
-        }
-        
-        /* Popup notification */
-        .popup-notification {
-            position: fixed;
-            top: -100px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: white;
-            padding: 20px 30px;
-            border-radius: 10px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-            z-index: 9999;
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            min-width: 300px;
-            transition: top 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-        }
-        
-        .popup-notification.show {
-            top: 90px;
-        }
-        
-        .popup-notification.success {
-            border-left: 5px solid #00cc00;
-        }
-        
-        .popup-notification.error {
-            border-left: 5px solid #ff4444;
-        }
-        
-        .popup-icon {
-            font-size: 32px;
-        }
-        
-        .popup-content {
-            flex: 1;
-        }
-        
-        .popup-title {
-            font-weight: 600;
             color: #1a1a1a;
-            margin-bottom: 5px;
-        }
-        
-        .popup-message {
-            font-size: 14px;
-            color: #666;
-        }
-        
-        .popup-close {
-            background: none;
-            border: none;
-            font-size: 24px;
-            color: #999;
-            cursor: pointer;
-            padding: 0;
-            width: 30px;
-            height: 30px;
+            margin-bottom: 12px;
             display: flex;
             align-items: center;
-            justify-content: center;
-            border-radius: 50%;
-            transition: all 0.3s;
+            justify-content: space-between;
         }
         
-        .popup-close:hover {
-            background: #f0f0f0;
-            color: #333;
-        }
-        
-        .prodotto-info {
-            background: #f9f9f9;
-            padding: 15px;
+        .badge-allarme {
+            background: #ff6b6b;
+            color: white;
+            padding: 3px 8px;
             border-radius: 8px;
-            margin-top: 15px;
-            display: none;
-        }
-        
-        .prodotto-info.show {
-            display: block;
-            animation: fadeIn 0.3s;
+            font-size: 11px;
+            font-weight: 600;
         }
         
         .info-row {
             display: flex;
             justify-content: space-between;
-            padding: 8px 0;
-            border-bottom: 1px solid #e0e0e0;
-        }
-        
-        .info-row:last-child {
-            border-bottom: none;
+            padding: 6px 0;
+            font-size: 13px;
         }
         
         .info-label {
@@ -698,191 +604,16 @@ $prodottiAllarme = array_filter($prodotti, function($p) {
             color: #1a1a1a;
         }
         
-        /* Search List */
-        .search-container-list {
-            position: relative;
-            margin-bottom: 25px;
-        }
-        
-        .search-box-list {
-            width: 100%;
-            padding: 12px 45px 12px 15px;
-            border: 2px solid #e0e0e0;
-            border-radius: 25px;
-            font-size: 15px;
-            transition: all 0.3s;
-            background: #f9f9f9;
-        }
-        
-        .search-box-list:focus {
-            outline: none;
-            border-color: #1a1a1a;
-            background: white;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        }
-        
-        .search-icon-list {
-            position: absolute;
-            right: 15px;
-            top: 50%;
-            transform: translateY(-50%);
-            font-size: 20px;
-            color: #666;
-            pointer-events: none;
-        }
-        
-        .clear-search-list {
-            position: absolute;
-            right: 45px;
-            top: 50%;
-            transform: translateY(-50%);
-            background: #1a1a1a;
-            color: white;
-            border: none;
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 14px;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.3s;
-        }
-        
-        .clear-search-list.active {
-            display: flex;
-        }
-        
-        .clear-search-list:hover {
-            background: #000;
-            transform: translateY(-50%) scale(1.1);
-        }
-        
-        .search-results-info-list {
-            margin-bottom: 15px;
-            color: #666;
-            font-size: 14px;
-            text-align: center;
-            display: none;
-        }
-        
-        .search-results-info-list.active {
-            display: block;
-        }
-        
-        /* Table */
-        .table-container {
-            overflow-x: auto;
-            border-radius: 8px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        }
-        
-        .prodotti-table {
-            width: 100%;
-            border-collapse: collapse;
-            background: white;
-        }
-        
-        .prodotti-table thead {
-            background: #1a1a1a;
-            color: white;
-        }
-        
-        .prodotti-table th {
-            padding: 15px;
-            text-align: left;
-            font-weight: 600;
-            font-size: 14px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .prodotti-table td {
-            padding: 15px;
-            border-bottom: 1px solid #f0f0f0;
-        }
-        
-        .prodotto-row {
-            transition: all 0.3s;
-        }
-        
-        .prodotto-row.hidden {
-            display: none;
-        }
-        
-        .prodotto-row:hover {
-            background: #f9f9f9;
-            transform: scale(1.01);
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        }
-        
-        .row-alert {
-            background: #ffebee !important;
-            border-left: 4px solid #ff6b6b;
-        }
-        
-        .row-alert:hover {
-            background: #ffcdd2 !important;
-        }
-        
-        .row-ok {
-            background: #e8f5e9 !important;
-            border-left: 4px solid #4caf50;
-        }
-        
-        .row-ok:hover {
-            background: #c8e6c9 !important;
-        }
-        
-        .td-nome {
-            font-weight: 600;
-            color: #1a1a1a;
-        }
-        
-        .td-descrizione {
-            color: #666;
-            font-size: 14px;
-            max-width: 300px;
-        }
-        
-        .td-quantita {
-            text-align: center;
-        }
-        
-        .badge-qty {
-            display: inline-block;
-            padding: 6px 12px;
-            border-radius: 15px;
-            background: #e0e0e0;
-            color: #1a1a1a;
-            font-weight: 600;
-            font-size: 13px;
-        }
-        
-        .badge-qty-low {
-            background: #ff6b6b;
-            color: white;
-        }
-        
-        .badge-alert {
-            display: inline-block;
-            margin-left: 10px;
-            padding: 4px 10px;
-            border-radius: 12px;
-            background: #ff6b6b;
-            color: white;
-            font-size: 11px;
-            font-weight: 600;
-        }
-        
-        .td-azioni {
+        .prodotto-actions {
             display: flex;
             gap: 8px;
-            flex-wrap: wrap;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #e0e0e0;
         }
         
         .btn-action {
+            flex: 1;
             padding: 8px 16px;
             border: none;
             border-radius: 6px;
@@ -892,6 +623,7 @@ $prodottiAllarme = array_filter($prodotti, function($p) {
             transition: all 0.3s;
             display: inline-flex;
             align-items: center;
+            justify-content: center;
             gap: 6px;
         }
         
@@ -915,35 +647,6 @@ $prodottiAllarme = array_filter($prodotti, function($p) {
             background: #fb8c00;
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(255, 152, 0, 0.4);
-        }
-        
-        .no-results-list {
-            text-align: center;
-            padding: 60px 20px;
-            background: white;
-            border-radius: 10px;
-            display: none;
-        }
-        
-        .no-results-list.active {
-            display: block;
-        }
-        
-        .no-results-icon-list {
-            font-size: 80px;
-            margin-bottom: 20px;
-            opacity: 0.3;
-        }
-        
-        .no-results-title-list {
-            font-size: 24px;
-            color: #1a1a1a;
-            margin-bottom: 10px;
-        }
-        
-        .no-results-message-list {
-            color: #666;
-            font-size: 16px;
         }
         
         /* Modal Quick */
@@ -974,6 +677,17 @@ $prodottiAllarme = array_filter($prodotti, function($p) {
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
         }
         
+        @keyframes scaleIn {
+            from {
+                opacity: 0;
+                transform: scale(0.8);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+        
         .modal-quick-header {
             padding: 25px;
             border-bottom: 1px solid #f0f0f0;
@@ -985,6 +699,20 @@ $prodottiAllarme = array_filter($prodotti, function($p) {
         .modal-quick-header h3 {
             color: #1a1a1a;
             font-size: 22px;
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 32px;
+            color: #999;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .modal-close:hover {
+            color: #333;
+            transform: rotate(90deg);
         }
         
         .modal-quick-body {
@@ -1033,12 +761,83 @@ $prodottiAllarme = array_filter($prodotti, function($p) {
             color: #666;
         }
         
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #1a1a1a;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        
+        input[type="number"],
+        input[type="text"],
+        textarea {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 5px;
+            font-size: 15px;
+            transition: all 0.3s;
+            background: #f9f9f9;
+            font-family: inherit;
+        }
+        
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+        
+        input:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #1a1a1a;
+            background: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        
         .modal-quick-footer {
             padding: 20px 25px;
             border-top: 1px solid #f0f0f0;
             display: flex;
             gap: 10px;
             justify-content: flex-end;
+        }
+        
+        .btn {
+            padding: 14px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            min-width: 130px;
+        }
+        
+        .btn-cancel {
+            background: #e0e0e0;
+            color: #1a1a1a;
+        }
+        
+        .btn-cancel:hover {
+            background: #d0d0d0;
+            transform: translateY(-2px);
+        }
+        
+        .btn-confirm {
+            background: #1a1a1a;
+            color: white;
+        }
+        
+        .btn-confirm:hover {
+            background: #000;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
         }
         
         /* Custom Confirm Dialog */
@@ -1052,7 +851,7 @@ $prodottiAllarme = array_filter($prodotti, function($p) {
             display: none;
             align-items: center;
             justify-content: center;
-            z-index: 10001;
+            z-index: 10003;
             animation: fadeIn 0.3s;
         }
         
@@ -1069,17 +868,6 @@ $prodottiAllarme = array_filter($prodotti, function($p) {
             text-align: center;
             animation: scaleIn 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
-        }
-        
-        @keyframes scaleIn {
-            from {
-                opacity: 0;
-                transform: scale(0.8);
-            }
-            to {
-                opacity: 1;
-                transform: scale(1);
-            }
         }
         
         .confirm-icon-wrapper {
@@ -1174,36 +962,74 @@ $prodottiAllarme = array_filter($prodotti, function($p) {
             margin-top: 25px;
         }
         
-        .btn {
-            padding: 14px 30px;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
+        /* Popup notification */
+        .popup-notification {
+            position: fixed;
+            top: -100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            padding: 20px 30px;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            min-width: 300px;
+            transition: top 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
+        
+        .popup-notification.show {
+            top: 90px;
+        }
+        
+        .popup-notification.success {
+            border-left: 5px solid #00cc00;
+        }
+        
+        .popup-notification.error {
+            border-left: 5px solid #ff4444;
+        }
+        
+        .popup-icon {
+            font-size: 32px;
+        }
+        
+        .popup-content {
+            flex: 1;
+        }
+        
+        .popup-title {
             font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-            min-width: 130px;
-        }
-        
-        .btn-cancel {
-            background: #e0e0e0;
             color: #1a1a1a;
+            margin-bottom: 5px;
         }
         
-        .btn-cancel:hover {
-            background: #d0d0d0;
-            transform: translateY(-2px);
+        .popup-message {
+            font-size: 14px;
+            color: #666;
         }
         
-        .btn-confirm {
-            background: #1a1a1a;
-            color: white;
+        .popup-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: #999;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.3s;
         }
         
-        .btn-confirm:hover {
-            background: #000;
-            transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+        .popup-close:hover {
+            background: #f0f0f0;
+            color: #333;
         }
         
         @media (max-width: 768px) {
@@ -1215,7 +1041,7 @@ $prodottiAllarme = array_filter($prodotti, function($p) {
                 display: none;
             }
             
-            .form-grid {
+            .prodotti-grid {
                 grid-template-columns: 1fr;
             }
             
@@ -1274,9 +1100,28 @@ $prodottiAllarme = array_filter($prodotti, function($p) {
             <div class="sidebar-title">Gestione Prodotti</div>
         </div>
         
-        <?php include './widget/menu.php'; ?>
-        
-      
+        <div class="sidebar-menu">
+            <a href="dashboard.php" class="menu-item">
+                <span class="menu-icon">🏠</span>
+                <span class="menu-text">Dashboard</span>
+            </a>
+            <a href="pagina_controllo.php" class="menu-item">
+                <span class="menu-icon">⚙️</span>
+                <span class="menu-text">Pagina di Controllo</span>
+            </a>
+            <a href="prodotti.php" class="menu-item">
+                <span class="menu-icon">📦</span>
+                <span class="menu-text">Modifica Prodotti</span>
+            </a>
+            <a href="entrateUscite.php" class="menu-item active">
+                <span class="menu-icon">🏷️</span>
+                <span class="menu-text">Registra Entrate/Uscite</span>
+            </a>
+            <a href="storico.php" class="menu-item">
+                <span class="menu-icon">📈</span>
+                <span class="menu-text">Storico Entrate/Uscite</span>
+            </a>
+        </div>
     </div>
     
     <!-- Navbar -->
@@ -1288,7 +1133,7 @@ $prodottiAllarme = array_filter($prodotti, function($p) {
         </div>
         <div class="user-info">
             <span>Benvenuto, <strong><?php echo htmlspecialchars($username); ?></strong></span>
-            <a href=".\logout.php" class="btn-logout">Logout</a>
+            <a href="./logout.php" class="btn-logout">Logout</a>
         </div>
     </nav>
     
@@ -1309,228 +1154,147 @@ $prodottiAllarme = array_filter($prodotti, function($p) {
                 <?php foreach ($prodottiAllarme as $prod): ?>
                 <div class="prodotto-allarme-card">
                     <div class="prodotto-allarme-nome"><?php echo htmlspecialchars($prod['nome']); ?></div>
-                    <div class="prodotto-allarme-quantita">Quantità: <strong><?php echo $prod['quantita']; ?></strong> unità</div>
+                    <div class="prodotto-allarme-quantita">Gruppo: <strong><?php echo htmlspecialchars($prod['padre']); ?></strong></div>
+                    <div class="prodotto-allarme-quantita">Quantità: <strong><?php echo $prod['quantita']; ?></strong> / Minimo: <strong><?php echo $prod['minimo']; ?></strong></div>
                 </div>
                 <?php endforeach; ?>
             </div>
         </div>
         <?php endif; ?>
         
-        <!-- Form registrazione movimento -->
+        <!-- Lista Prodotti per Padre -->
         <div class="section-card">
             <div class="section-header">
-                <span class="section-icon">📝</span>
-                <h3>Registra Movimento</h3>
-            </div>
-            
-            <?php if ($errore): ?>
-                <div class="messaggio errore"><?php echo htmlspecialchars($errore); ?></div>
-            <?php endif; ?>
-            
-            <form method="POST" action="" id="formMovimento">
-                <!-- Selezione tipo movimento -->
-                <div class="tipo-movimento-group">
-                    <div class="radio-option">
-                        <input type="radio" id="entrata" name="tipo_movimento" value="entrata" checked>
-                        <label for="entrata" class="radio-label">
-                            <span class="radio-icon">📥</span>
-                            <span>Entrata</span>
-                        </label>
-                    </div>
-                    <div class="radio-option">
-                        <input type="radio" id="uscita" name="tipo_movimento" value="uscita">
-                        <label for="uscita" class="radio-label">
-                            <span class="radio-icon">📤</span>
-                            <span>Uscita</span>
-                        </label>
-                    </div>
-                </div>
-                
-                <div class="form-grid">
-                    <!-- Selezione prodotto -->
-                    <div class="form-group">
-                        <label for="prodotto">Seleziona Prodotto *</label>
-                        <select id="prodotto" name="prodotto" required>
-                            <option value="">-- Seleziona un prodotto --</option>
-                            <?php foreach ($prodotti as $prod): ?>
-                                <option value="<?php echo $prod['id']; ?>" 
-                                        data-nome="<?php echo htmlspecialchars($prod['nome']); ?>"
-                                        data-descrizione="<?php echo htmlspecialchars($prod['descrizione']); ?>"
-                                        data-quantita="<?php echo $prod['quantita']; ?>"
-                                        data-fornitore="<?php echo htmlspecialchars($prod['fornitore']); ?>">
-                                    <?php echo htmlspecialchars($prod['nome']); ?> (Disponibile: <?php echo $prod['quantita']; ?>)
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    
-                    <!-- Quantità movimento -->
-                    <div class="form-group">
-                        <label for="quantita_movimento">Quantità *</label>
-                        <input type="number" id="quantita_movimento" name="quantita_movimento" min="1" value="1" required>
-                    </div>
-                    
-                    <!-- Numero bolla -->
-                    <div class="form-group">
-                        <label for="numero_bolla">NUMERO ISTA TAGLIO</label>
-                        <input type="text" id="numero_bolla" name="numero_bolla" placeholder="Opzionale">
-                    </div>
-
-                                        <!-- Numero dato -->
-                    <div class="form-group">
-                        <label for="numero_dato">NUMERO OFFERTA</label>
-                        <input type="text" id="numero_dato" name="numero_dato" placeholder="Opzionale">
-                    </div>
-                    
-                    <!-- Descrizione movimento -->
-                    <div class="form-group full-width">
-                        <label for="descrizione_movimento">Descrizione Movimento</label>
-                        <textarea id="descrizione_movimento" name="descrizione_movimento" placeholder="Note aggiuntive (opzionale)"></textarea>
-                    </div>
-                </div>
-                
-                <!-- Info prodotto selezionato -->
-                <div class="prodotto-info" id="prodottoInfo">
-                    <div class="info-row">
-                        <span class="info-label">Fornitore:</span>
-                        <span class="info-value" id="infoProdottoFornitore">-</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">Descrizione:</span>
-                        <span class="info-value" id="infoProdottoDescrizione">-</span>
-                    </div>
-                </div>
-                
-                <button type="submit" name="registra_movimento">Registra Movimento</button>
-            </form>
-        </div>
-        
-        <!-- Lista Prodotti -->
-        <div class="section-card" style="margin-top: 30px;">
-            <div class="section-header">
                 <span class="section-icon">📋</span>
-                <h3>Lista Prodotti</h3>
+                <h3>Prodotti per Gruppo</h3>
             </div>
             
-            <!-- Barra di ricerca -->
-            <div class="search-container-list">
-                <input type="text" 
-                       class="search-box-list" 
-                       id="searchInputList" 
-                       placeholder="Cerca prodotti per nome, descrizione o fornitore..."
-                       autocomplete="off">
-                <button class="clear-search-list" id="clearSearchList" onclick="clearSearchList()">×</button>
-                <span class="search-icon-list">🔍</span>
-            </div>
-            
-            <div class="search-results-info-list" id="searchResultsInfoList"></div>
-            
-            <!-- Tabella prodotti -->
-            <div class="table-container">
-                <table class="prodotti-table" id="prodottiTable">
-                    <thead>
-                        <tr>
-                            <th>Prodotto</th>
-                            <th>Descrizione</th>
-                            <th>Quantità</th>
-                            <th>Fornitore</th>
-                            <th>Azioni</th>
-                        </tr>
-                    </thead>
-                    <tbody id="prodottiTableBody">
-                        <?php foreach ($prodotti as $prod): ?>
-                            <tr class="prodotto-row <?php echo ($prod['quantita'] < 5) ? 'row-alert' : 'row-ok'; ?>"
-                                data-nome="<?php echo strtolower(htmlspecialchars($prod['nome'])); ?>"
-                                data-descrizione="<?php echo strtolower(htmlspecialchars($prod['descrizione'])); ?>"
-                                data-fornitore="<?php echo strtolower(htmlspecialchars($prod['fornitore'])); ?>">
-                                <td class="td-nome">
-                                    <strong><?php echo htmlspecialchars($prod['nome']); ?></strong>
-                                    <?php if ($prod['quantita'] < 5): ?>
-                                        <span class="badge-alert">⚠️ Scorte basse</span>
-                                    <?php endif; ?>
-                                </td>
-                                <td class="td-descrizione"><?php echo htmlspecialchars($prod['descrizione']); ?></td>
-                                <td class="td-quantita">
-                                    <span class="badge-qty <?php echo ($prod['quantita'] < 5) ? 'badge-qty-low' : ''; ?>">
-                                        <?php echo $prod['quantita']; ?> pz
-                                    </span>
-                                </td>
-                                <td class="td-fornitore"><?php echo htmlspecialchars($prod['fornitore']); ?></td>
-                                <td class="td-azioni">
-                                    <button class="btn-action btn-entrata" 
-                                            onclick='openQuickMovement(<?php echo json_encode($prod); ?>, "entrata")'>
-                                        📥 Entrata
-                                    </button>
-                                    <button class="btn-action btn-uscita" 
-                                            onclick='openQuickMovement(<?php echo json_encode($prod); ?>, "uscita")'>
-                                        📤 Uscita
-                                    </button>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-            
-            <div class="no-results-list" id="noResultsList">
-                <div class="no-results-icon-list">🔍</div>
-                <div class="no-results-title-list">Nessun risultato</div>
-                <div class="no-results-message-list">Nessun prodotto corrisponde alla tua ricerca</div>
-            </div>
-        </div>
-        
-        <!-- Modal Quick Movement -->
-        <div class="modal-quick" id="modalQuick">
-            <div class="modal-quick-content">
-                <div class="modal-quick-header">
-                    <h3 id="modalQuickTitle">Movimento Rapido</h3>
-                    <button class="modal-close" onclick="closeQuickModal()">×</button>
-                </div>
-                <form id="formQuick" onsubmit="return handleQuickSubmit(event);">
-                    <input type="hidden" id="quick_prodotto_id" name="prodotto">
-                    <input type="hidden" id="quick_tipo_movimento" name="tipo_movimento">
-                    <input type="hidden" name="registra_movimento" value="1">
-                    
-                    <div class="modal-quick-body">
-                        <div class="quick-product-info">
-                            <div class="quick-icon-wrapper" id="quickIconWrapper">
-                                <span class="quick-icon" id="quickIcon"></span>
+            <?php if (!empty($prodotti_per_padre)): ?>
+                <?php foreach ($prodotti_per_padre as $padre => $figli): ?>
+                    <div class="padre-group">
+                        <div class="padre-header" onclick="togglePadreContent(this)">
+                            <div class="padre-title">
+                                <i class="fas fa-folder"></i>
+                                <?php echo htmlspecialchars($padre); ?>
+                                <span class="padre-badge"><?php echo count($figli); ?> prodotti</span>
                             </div>
-                            <div class="quick-product-name" id="quickProductName"></div>
-                            <div class="quick-product-qty" id="quickProductQty"></div>
+                            <span class="padre-toggle">▼</span>
                         </div>
                         
-                        <div class="form-group">
-                            <label for="quick_quantita_movimento">Quantità *</label>
-                            <input type="number" id="quick_quantita_movimento" name="quantita_movimento" min="1" value="1" required>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="quick_numero_bolla">NUMERO ISTA TAGLIO</label>
-                            <input type="text" id="quick_numero_bolla" name="numero_bolla" placeholder="Opzionale">
-                        </div>
-                               <div class="form-group">
-                            <label for="quick_numero_dato">NUMERO OFFERTA</label>
-                            <input type="text" id="quick_numero_dato" name="numero_dato" placeholder="Opzionale">
-                        </div>
-
-                        
-                        
-                        <div class="form-group">
-                            <label for="quick_descrizione_movimento">Descrizione</label>
-                            <textarea id="quick_descrizione_movimento" name="descrizione_movimento" placeholder="Note aggiuntive (opzionale)"></textarea>
+                        <div class="padre-content">
+                            <div class="prodotti-grid">
+                                <?php foreach ($figli as $prod): ?>
+                                    <div class="prodotto-card <?php echo ($prod['quantita'] < $prod['minimo']) ? 'allarme' : ''; ?>">
+                                        <div class="prodotto-nome">
+                                            <?php echo htmlspecialchars($prod['nome']); ?>
+                                            <?php if ($prod['quantita'] < $prod['minimo']): ?>
+                                                <span class="badge-allarme">⚠️ BASSO</span>
+                                            <?php endif; ?>
+                                        </div>
+                                        
+                                        <div class="info-row">
+                                            <span class="info-label">Quantità:</span>
+                                            <span class="info-value"><strong><?php echo $prod['quantita']; ?></strong> pz</span>
+                                        </div>
+                                        
+                                        <div class="info-row">
+                                            <span class="info-label">Minimo:</span>
+                                            <span class="info-value"><?php echo $prod['minimo']; ?> pz</span>
+                                        </div>
+                                        
+                                        <div class="info-row">
+                                            <span class="info-label">Fornitore:</span>
+                                            <span class="info-value"><?php echo htmlspecialchars($prod['fornitore']); ?></span>
+                                        </div>
+                                        
+                                        <?php if (!empty($prod['descrizione'])): ?>
+                                        <div class="info-row">
+                                            <span class="info-label">Descrizione:</span>
+                                            <span class="info-value"><?php echo htmlspecialchars($prod['descrizione']); ?></span>
+                                        </div>
+                                        <?php endif; ?>
+                                        
+                                        <div class="prodotto-actions">
+                                            <button class="btn-action btn-entrata" 
+                                                    onclick='openQuickMovement(<?php echo json_encode($prod); ?>, "entrata")'>
+                                                <i class="fas fa-arrow-down"></i> Entrata
+                                            </button>
+                                            <button class="btn-action btn-uscita" 
+                                                    onclick='openQuickMovement(<?php echo json_encode($prod); ?>, "uscita")'>
+                                                <i class="fas fa-arrow-up"></i> Uscita
+                                            </button>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
                         </div>
                     </div>
-                    <div class="modal-quick-footer">
-                        <button type="button" class="btn btn-cancel" onclick="closeQuickModal()">Annulla</button>
-                        <button type="submit" class="btn btn-confirm" id="btnQuickSubmit">Conferma</button>
-                    </div>
-                </form>
+                <?php endforeach; ?>
+            <?php else: ?>
+                <div style="text-align: center; padding: 60px 20px;">
+                    <i class="fas fa-box-open" style="font-size: 80px; color: #ddd; margin-bottom: 20px;"></i>
+                    <h3 style="color: #1a1a1a; margin-bottom: 10px;">Nessun prodotto trovato</h3>
+                    <p style="color: #666;">Aggiungi prodotti dalla sezione "Modifica Prodotti"</p>
+                </div>
+            <?php endif; ?>
+        </div>
+    </div>
+    
+    <!-- Modal Quick Movement -->
+    <div class="modal-quick" id="modalQuick">
+        <div class="modal-quick-content">
+            <div class="modal-quick-header">
+                <h3 id="modalQuickTitle">Movimento Rapido</h3>
+                <button class="modal-close" onclick="closeQuickModal()">×</button>
             </div>
+            <form id="formQuick" method="POST" action="">
+                <input type="hidden" id="quick_prodotto_id" name="prodotto">
+                <input type="hidden" id="quick_tipo_movimento" name="tipo_movimento">
+                <input type="hidden" name="registra_movimento" value="1">
+                
+                <div class="modal-quick-body">
+                    <div class="quick-product-info">
+                        <div class="quick-icon-wrapper" id="quickIconWrapper">
+                            <span class="quick-icon" id="quickIcon"></span>
+                        </div>
+                        <div class="quick-product-name" id="quickProductName"></div>
+                        <div class="quick-product-qty" id="quickProductQty"></div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="quick_quantita_movimento">Quantità *</label>
+                        <input type="number" id="quick_quantita_movimento" name="quantita_movimento" min="1" value="1" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="quick_numero_bolla">Numero Ista Taglio</label>
+                        <input type="text" id="quick_numero_bolla" name="numero_bolla" placeholder="Opzionale">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="quick_numero_dato">Numero Offerta</label>
+                        <input type="text" id="quick_numero_dato" name="numero_dato" placeholder="Opzionale">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="quick_descrizione_movimento">Descrizione</label>
+                        <textarea id="quick_descrizione_movimento" name="descrizione_movimento" placeholder="Note aggiuntive (opzionale)"></textarea>
+                    </div>
+                </div>
+                <div class="modal-quick-footer">
+                    <button type="button" class="btn btn-cancel" onclick="closeQuickModal()">Annulla</button>
+                    <button type="button" class="btn btn-confirm" onclick="handleQuickSubmit()">Conferma</button>
+                </div>
+            </form>
         </div>
     </div>
     
     <script>
+        // Variabili globali
+        let currentQuickProduct = null;
+        let currentQuickType = null;
+        let pendingForm = false;
+        
         // Funzioni Popup
         function showPopup(type, title, message) {
             const popup = document.getElementById('popupNotification');
@@ -1542,10 +1306,10 @@ $prodottiAllarme = array_filter($prodotti, function($p) {
             
             if (type === 'success') {
                 popup.classList.add('success');
-                icon.textContent = '✅';
+                icon.innerHTML = '<i class="fas fa-check-circle" style="color: #00cc00;"></i>';
             } else {
                 popup.classList.add('error');
-                icon.textContent = '❌';
+                icon.innerHTML = '<i class="fas fa-times-circle" style="color: #ff4444;"></i>';
             }
             
             titleEl.textContent = title;
@@ -1565,9 +1329,13 @@ $prodottiAllarme = array_filter($prodotti, function($p) {
             popup.classList.remove('show');
         }
         
-        // Mostra popup se c'è un messaggio di successo
+        // Mostra popup se c'è un messaggio
         <?php if ($successo): ?>
             showPopup('success', 'Movimento Registrato!', '<?php echo addslashes($successo); ?>');
+        <?php endif; ?>
+        
+        <?php if ($errore): ?>
+            showPopup('error', 'Errore', '<?php echo addslashes($errore); ?>');
         <?php endif; ?>
         
         // Toggle Sidebar
@@ -1606,57 +1374,98 @@ $prodottiAllarme = array_filter($prodotti, function($p) {
             });
         });
         
-        // Gestione selezione prodotto
-        const prodottoSelect = document.getElementById('prodotto');
-        const prodottoInfo = document.getElementById('prodottoInfo');
-        const infoProdottoFornitore = document.getElementById('infoProdottoFornitore');
-        const infoProdottoDescrizione = document.getElementById('infoProdottoDescrizione');
-        const quantitaInput = document.getElementById('quantita_movimento');
-        
-        prodottoSelect.addEventListener('change', function() {
-            const selectedOption = this.options[this.selectedIndex];
+        // Toggle Padre Content
+        function togglePadreContent(header) {
+            const content = header.nextElementSibling;
+            const toggle = header.querySelector('.padre-toggle');
             
-            if (selectedOption.value) {
-                const fornitore = selectedOption.dataset.fornitore;
-                const descrizione = selectedOption.dataset.descrizione;
-                
-                infoProdottoFornitore.textContent = fornitore;
-                infoProdottoDescrizione.textContent = descrizione;
-                
-                prodottoInfo.classList.add('show');
-                
-                // Imposta il massimo per le uscite
-                updateQuantitaMax();
+            if (content.classList.contains('expanded')) {
+                content.classList.remove('expanded');
+                toggle.classList.remove('expanded');
             } else {
-                prodottoInfo.classList.remove('show');
-            }
-        });
-        
-        // Aggiorna il massimo della quantità in base al tipo di movimento
-        const radioEntrata = document.getElementById('entrata');
-        const radioUscita = document.getElementById('uscita');
-        
-        function updateQuantitaMax() {
-            const selectedOption = prodottoSelect.options[prodottoSelect.selectedIndex];
-            
-            if (selectedOption.value && radioUscita.checked) {
-                const quantitaDisponibile = parseInt(selectedOption.dataset.quantita);
-                quantitaInput.max = quantitaDisponibile;
-                
-                if (parseInt(quantitaInput.value) > quantitaDisponibile) {
-                    quantitaInput.value = quantitaDisponibile;
-                }
-            } else {
-                quantitaInput.removeAttribute('max');
+                content.classList.add('expanded');
+                toggle.classList.add('expanded');
             }
         }
         
-        radioEntrata.addEventListener('change', updateQuantitaMax);
-        radioUscita.addEventListener('change', updateQuantitaMax);
+        // Quick Movement Functions
+        const modalQuick = document.getElementById('modalQuick');
+        
+        function openQuickMovement(prodotto, tipo) {
+            currentQuickProduct = prodotto;
+            currentQuickType = tipo;
+            
+            const quickIcon = document.getElementById('quickIcon');
+            const quickIconWrapper = document.getElementById('quickIconWrapper');
+            const modalTitle = document.getElementById('modalQuickTitle');
+            const productName = document.getElementById('quickProductName');
+            const productQty = document.getElementById('quickProductQty');
+            const quantitaInput = document.getElementById('quick_quantita_movimento');
+            
+            quickIconWrapper.className = 'quick-icon-wrapper';
+            
+            if (tipo === 'entrata') {
+                quickIconWrapper.classList.add('entrata');
+                quickIcon.innerHTML = '<i class="fas fa-arrow-down" style="color: #4caf50;"></i>';
+                modalTitle.textContent = 'Entrata Rapida';
+                quantitaInput.removeAttribute('max');
+            } else {
+                quickIconWrapper.classList.add('uscita');
+                quickIcon.innerHTML = '<i class="fas fa-arrow-up" style="color: #ff9800;"></i>';
+                modalTitle.textContent = 'Uscita Rapida';
+                quantitaInput.max = prodotto.quantita;
+            }
+            
+            productName.textContent = prodotto.nome;
+            productQty.textContent = `Quantità disponibile: ${prodotto.quantita} pz | Minimo: ${prodotto.minimo} pz`;
+            
+            // Reset form e imposta valori
+            const formQuick = document.getElementById('formQuick');
+            formQuick.reset();
+            
+            document.getElementById('quick_prodotto_id').value = prodotto.id;
+            document.getElementById('quick_tipo_movimento').value = tipo;
+            document.getElementById('quick_quantita_movimento').value = 1;
+            
+            // Mostra modal
+            modalQuick.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+        
+        function closeQuickModal() {
+            modalQuick.classList.remove('active');
+            document.body.style.overflow = '';
+            currentQuickProduct = null;
+            currentQuickType = null;
+        }
+        
+        function handleQuickSubmit() {
+            const quantita = parseInt(document.getElementById('quick_quantita_movimento').value);
+            
+            if (quantita <= 0) {
+                alert('Inserisci una quantità valida!');
+                return;
+            }
+            
+            if (currentQuickType === 'uscita' && quantita > currentQuickProduct.quantita) {
+                alert('Quantità non disponibile! Disponibili: ' + currentQuickProduct.quantita + ' unità');
+                return;
+            }
+            
+            const numeroBolla = document.getElementById('quick_numero_bolla').value;
+            const numeroDato = document.getElementById('quick_numero_dato').value;
+            
+            // Chiudi modal
+            modalQuick.classList.remove('active');
+            document.body.style.overflow = '';
+            
+            // Mostra conferma
+            pendingForm = 'quick';
+            showConfirm(currentQuickType, currentQuickProduct.nome, quantita, currentQuickProduct.quantita, numeroBolla, numeroDato);
+        }
         
         // Custom Confirm Dialog
         const confirmDialog = document.getElementById('confirmDialog');
-        let pendingForm = false;
         
         function showConfirm(tipoMovimento, nomeProdotto, quantita, quantitaAttuale, numeroBolla, numeroDato) {
             const confirmIcon = document.getElementById('confirmIcon');
@@ -1671,12 +1480,12 @@ $prodottiAllarme = array_filter($prodotti, function($p) {
             // Configura in base al tipo
             if (tipoMovimento === 'entrata') {
                 confirmIconWrapper.classList.add('entrata');
-                confirmIcon.textContent = '📥';
+                confirmIcon.innerHTML = '<i class="fas fa-arrow-down" style="color: #4caf50;"></i>';
                 confirmTitle.textContent = 'Conferma Entrata';
                 confirmMessage.textContent = 'Stai per registrare un\'entrata di prodotto nel magazzino.';
             } else {
                 confirmIconWrapper.classList.add('uscita');
-                confirmIcon.textContent = '📤';
+                confirmIcon.innerHTML = '<i class="fas fa-arrow-up" style="color: #ff9800;"></i>';
                 confirmTitle.textContent = 'Conferma Uscita';
                 confirmMessage.textContent = 'Stai per registrare un\'uscita di prodotto dal magazzino.';
             }
@@ -1711,16 +1520,16 @@ $prodottiAllarme = array_filter($prodotti, function($p) {
             if (numeroBolla && numeroBolla.trim() !== '') {
                 detailsHTML += `
                     <div class="confirm-detail-row">
-                        <span class="confirm-detail-label">Numero Bolla:</span>
+                        <span class="confirm-detail-label">Numero Ista Taglio:</span>
                         <span class="confirm-detail-value">${numeroBolla}</span>
                     </div>
                 `;
             }
-
-                        if (numeroDato && numeroDato.trim() !== '') {
+            
+            if (numeroDato && numeroDato.trim() !== '') {
                 detailsHTML += `
                     <div class="confirm-detail-row">
-                        <span class="confirm-detail-label">Numero Dato:</span>
+                        <span class="confirm-detail-label">Numero Offerta:</span>
                         <span class="confirm-detail-value">${numeroDato}</span>
                     </div>
                 `;
@@ -1737,7 +1546,6 @@ $prodottiAllarme = array_filter($prodotti, function($p) {
             confirmDialog.classList.remove('active');
             document.body.style.overflow = '';
             
-            // Resetta solo se non stiamo confermando
             if (!pendingForm) {
                 currentQuickProduct = null;
                 currentQuickType = null;
@@ -1745,26 +1553,20 @@ $prodottiAllarme = array_filter($prodotti, function($p) {
         }
         
         function confirmSubmit() {
-            if (pendingForm) {
-                // Crea un form nascosto e invialo
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = '';
+            if (pendingForm === 'quick') {
+                const formQuick = document.getElementById('formQuick');
                 
-                // Copia tutti i valori dal form originale
-                const originalForm = document.getElementById('formMovimento');
-                const formData = new FormData(originalForm);
+                // Chiudi il dialog
+                confirmDialog.classList.remove('active');
+                document.body.style.overflow = '';
                 
-                for (let [key, value] of formData.entries()) {
-                    const input = document.createElement('input');
-                    input.type = 'hidden';
-                    input.name = key;
-                    input.value = value;
-                    form.appendChild(input);
-                }
+                // Reset variabili
+                pendingForm = false;
+                currentQuickProduct = null;
+                currentQuickType = null;
                 
-                document.body.appendChild(form);
-                form.submit();
+                // Invia il form
+                formQuick.submit();
             }
         }
         
@@ -1775,274 +1577,14 @@ $prodottiAllarme = array_filter($prodotti, function($p) {
             }
         });
         
-        // Validazione form con conferma custom
-        document.getElementById('formMovimento').addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const prodotto = prodottoSelect.value;
-            const quantita = parseInt(quantitaInput.value);
-            const tipoMovimento = document.querySelector('input[name="tipo_movimento"]:checked').value;
-            const numeroBolla = document.getElementById('numero_bolla').value;
-            const numeroDato = document.getElementById('numero_dato').value;
-            
-            if (!prodotto) {
-                alert('Seleziona un prodotto!');
-                return;
-            }
-            
-            if (quantita <= 0) {
-                alert('Inserisci una quantità valida!');
-                return;
-            }
-            
-            const selectedOption = prodottoSelect.options[prodottoSelect.selectedIndex];
-            const quantitaDisponibile = parseInt(selectedOption.dataset.quantita);
-            const nomeProdotto = selectedOption.dataset.nome;
-            
-            if (tipoMovimento === 'uscita' && quantita > quantitaDisponibile) {
-                alert('Quantità non disponibile! Disponibili: ' + quantitaDisponibile + ' unità');
-                return;
-            }
-            
-            // Mostra conferma custom
-            pendingForm = 'main';
-            showConfirm(tipoMovimento, nomeProdotto, quantita, quantitaDisponibile, numeroBolla);
-        });
-        
-        // Close dialog con ESC
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape' && confirmDialog.classList.contains('active')) {
-                closeConfirm();
-            }
-        });
-        
-        // Reset form dopo successo
-        <?php if ($successo): ?>
-            setTimeout(() => {
-                document.getElementById('formMovimento').reset();
-                prodottoInfo.classList.remove('show');
-                document.getElementById('entrata').checked = true;
-            }, 100);
-        <?php endif; ?>
-        
-        // Animazione input
-        const inputs = document.querySelectorAll('input, textarea, select');
-        inputs.forEach(input => {
-            input.addEventListener('focus', function() {
-                this.parentElement.style.transform = 'translateX(3px)';
-                this.parentElement.style.transition = 'transform 0.2s';
-            });
-            input.addEventListener('blur', function() {
-                this.parentElement.style.transform = 'translateX(0)';
-            });
-        });
-        
-        // Quick Movement Functions
-        let currentQuickProduct = null;
-        let currentQuickType = null;
-        const modalQuick = document.getElementById('modalQuick');
-        
-        function openQuickMovement(prodotto, tipo) {
-            currentQuickProduct = prodotto;
-            currentQuickType = tipo;
-            
-            console.log('Opening quick modal for:', prodotto, 'Type:', tipo); // Debug
-            
-            // Configura il modal
-            const quickIcon = document.getElementById('quickIcon');
-            const quickIconWrapper = document.getElementById('quickIconWrapper');
-            const modalTitle = document.getElementById('modalQuickTitle');
-            const productName = document.getElementById('quickProductName');
-            const productQty = document.getElementById('quickProductQty');
-            const btnSubmit = document.getElementById('btnQuickSubmit');
-            const quantitaInput = document.getElementById('quick_quantita_movimento');
-            
-            quickIconWrapper.className = 'quick-icon-wrapper';
-            
-            if (tipo === 'entrata') {
-                quickIconWrapper.classList.add('entrata');
-                quickIcon.textContent = '📥';
-                modalTitle.textContent = 'Entrata Rapida';
-                btnSubmit.style.background = '#4caf50';
-                quantitaInput.removeAttribute('max');
-            } else {
-                quickIconWrapper.classList.add('uscita');
-                quickIcon.textContent = '📤';
-                modalTitle.textContent = 'Uscita Rapida';
-                btnSubmit.style.background = '#ff9800';
-                quantitaInput.max = prodotto.quantita;
-            }
-            
-            productName.textContent = prodotto.nome;
-            productQty.textContent = `Quantità disponibile: ${prodotto.quantita} pz`;
-            
-            // Reset form e imposta valori
-            const formQuick = document.getElementById('formQuick');
-            formQuick.reset();
-            
-            // IMPORTANTE: Imposta i valori hidden DOPO il reset
-            document.getElementById('quick_prodotto_id').value = prodotto.id;
-            document.getElementById('quick_tipo_movimento').value = tipo;
-            document.getElementById('quick_quantita_movimento').value = 1;
-            
-            console.log('Form quick values set:', {
-                id: prodotto.id,
-                tipo: tipo,
-                quantita: 1
-            }); // Debug
-            
-            // Mostra modal
-            modalQuick.classList.add('active');
-            document.body.style.overflow = 'hidden';
-        }
-        
-        function closeQuickModal() {
-            modalQuick.classList.remove('active');
-            document.body.style.overflow = '';
-            currentQuickProduct = null;
-            currentQuickType = null;
-        }
-        
-        function handleQuickSubmit(event) {
-            event.preventDefault();
-            
-            console.log('handleQuickSubmit called'); // Debug
-            console.log('currentQuickProduct:', currentQuickProduct); // Debug
-            console.log('currentQuickType:', currentQuickType); // Debug
-            
-            const quantita = parseInt(document.getElementById('quick_quantita_movimento').value);
-            
-            if (quantita <= 0) {
-                alert('Inserisci una quantità valida!');
-                return false;
-            }
-            
-            if (currentQuickType === 'uscita' && quantita > currentQuickProduct.quantita) {
-                alert('Quantità non disponibile! Disponibili: ' + currentQuickProduct.quantita + ' unità');
-                return false;
-            }
-            
-            // Verifica che i campi hidden abbiano i valori corretti
-            const prodottoId = document.getElementById('quick_prodotto_id').value;
-            const tipoMov = document.getElementById('quick_tipo_movimento').value;
-            
-            console.log('Form values before confirm:', {
-                prodotto: prodottoId,
-                tipo_movimento: tipoMov,
-                quantita: quantita
-            }); // Debug
-            
-            // Salva i dati prima di chiudere il modal
-            const numeroBolla = document.getElementById('quick_numero_bolla').value;
-            const numeroDato = document.getElementById('quick_numero_dato').value;
-            const tipoMovimento = currentQuickType;
-            const nomeProdotto = currentQuickProduct.nome;
-            const quantitaAttuale = currentQuickProduct.quantita;
-            
-            // Chiudi modal
-            modalQuick.classList.remove('active');
-            document.body.style.overflow = '';
-            
-            // NON resettare currentQuickProduct e currentQuickType qui
-            // Imposta il flag per il form quick
-            pendingForm = 'quick';
-            showConfirm(tipoMovimento, nomeProdotto, quantita, quantitaAttuale, numeroBolla);
-            
-            return false;
-        }
-        
-        // Modifica confirmSubmit originale per salvare riferimento
-        const originalConfirmSubmitFunc = window.confirmSubmit;
-        
-      // Modifica confirmSubmit per gestire correttamente entrambi i form
-window.confirmSubmit = function() {
-    if (pendingForm) {
-        let formToSubmit;
-        
-        console.log('Pending form type:', pendingForm); // Debug
-        
-        // Controlla quale form stiamo usando
-        if (pendingForm === 'quick') {
-            formToSubmit = document.getElementById('formQuick');
-            console.log('Using quick form'); // Debug
-            
-            // Verifica che i campi hidden esistano e abbiano valori
-            const prodottoId = document.getElementById('quick_prodotto_id');
-            const tipoMov = document.getElementById('quick_tipo_movimento');
-            const quantitaMov = document.getElementById('quick_quantita_movimento');
-            
-            console.log('Hidden fields check:', {
-                prodotto_exists: !!prodottoId,
-                prodotto_value: prodottoId ? prodottoId.value : 'NULL',
-                tipo_exists: !!tipoMov,
-                tipo_value: tipoMov ? tipoMov.value : 'NULL',
-                quantita_exists: !!quantitaMov,
-                quantita_value: quantitaMov ? quantitaMov.value : 'NULL'
-            });
-            
-        } else {
-            formToSubmit = document.getElementById('formMovimento');
-            console.log('Using main form'); // Debug
-            
-            // Assicurati che il campo registra_movimento esista nel form principale
-            let submitInput = formToSubmit.querySelector('input[name="registra_movimento"]');
-            if (!submitInput) {
-                submitInput = document.createElement('input');
-                submitInput.type = 'hidden';
-                submitInput.name = 'registra_movimento';
-                submitInput.value = '1';
-                formToSubmit.appendChild(submitInput);
-            }
-        }
-        
-        // Debug: mostra tutti i campi del form
-        const formData = new FormData(formToSubmit);
-        console.log('Form fields to be submitted:');
-        for (let [key, value] of formData.entries()) {
-            console.log('  ' + key + ': ' + value);
-        }
-        
-        // Verifica che registra_movimento sia presente
-        if (!formData.has('registra_movimento')) {
-            console.error('ERRORE: Campo registra_movimento mancante!');
-            alert('Errore: campo registra_movimento mancante. Controlla la console.');
-            return;
-        }
-        
-        // Verifica che prodotto sia presente
-        if (!formData.has('prodotto') || !formData.get('prodotto')) {
-            console.error('ERRORE: Campo prodotto mancante o vuoto!');
-            alert('Errore: campo prodotto mancante. Controlla la console.');
-            return;
-        }
-        
-        console.log('All checks passed, submitting form...'); // Debug
-        
-        // Chiudi il dialog PRIMA di resettare le variabili
-        confirmDialog.classList.remove('active');
-        document.body.style.overflow = '';
-        
-        // Resetta le variabili
-        pendingForm = false;
-        currentQuickProduct = null;
-        currentQuickType = null;
-        
-        // IMPORTANTE: Cambia method e action del form per assicurarti che funzioni
-        formToSubmit.method = 'POST';
-        formToSubmit.action = '';
-        
-        // Invia il form
-        console.log('Calling form.submit()...'); // Debug
-        formToSubmit.submit();
-    } else {
-        console.log('pendingForm is false, not submitting'); // Debug
-    }
-};
-        // Close quick modal on ESC
+        // Close modal on ESC
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') {
                 if (modalQuick.classList.contains('active')) {
                     closeQuickModal();
+                }
+                if (confirmDialog.classList.contains('active')) {
+                    closeConfirm();
                 }
             }
         });
@@ -2053,79 +1595,6 @@ window.confirmSubmit = function() {
                 closeQuickModal();
             }
         });
-        
-        // Search functionality for list
-        const searchInputList = document.getElementById('searchInputList');
-        const clearSearchBtnList = document.getElementById('clearSearchList');
-        const searchResultsInfoList = document.getElementById('searchResultsInfoList');
-        const noResultsList = document.getElementById('noResultsList');
-        const tableContainer = document.querySelector('.table-container');
-        const prodottiRows = document.querySelectorAll('.prodotto-row');
-        const totalProdottiList = prodottiRows.length;
-        
-        if (searchInputList) {
-            searchInputList.addEventListener('input', function() {
-                const searchTerm = this.value.toLowerCase().trim();
-                
-                if (searchTerm.length > 0) {
-                    clearSearchBtnList.classList.add('active');
-                } else {
-                    clearSearchBtnList.classList.remove('active');
-                }
-                
-                filterProductsList(searchTerm);
-            });
-        }
-        
-        function filterProductsList(searchTerm) {
-            let visibleCount = 0;
-            
-            prodottiRows.forEach(row => {
-                const nome = row.getAttribute('data-nome') || '';
-                const descrizione = row.getAttribute('data-descrizione') || '';
-                const fornitore = row.getAttribute('data-fornitore') || '';
-                
-                const matches = nome.includes(searchTerm) || 
-                               descrizione.includes(searchTerm) || 
-                               fornitore.includes(searchTerm);
-                
-                if (searchTerm === '' || matches) {
-                    row.classList.remove('hidden');
-                    visibleCount++;
-                } else {
-                    row.classList.add('hidden');
-                }
-            });
-            
-            updateSearchResultsList(searchTerm, visibleCount);
-        }
-        
-        function updateSearchResultsList(searchTerm, visibleCount) {
-            if (searchTerm === '') {
-                searchResultsInfoList.classList.remove('active');
-                noResultsList.classList.remove('active');
-                tableContainer.style.display = 'block';
-            } else {
-                searchResultsInfoList.classList.add('active');
-                
-                if (visibleCount === 0) {
-                    searchResultsInfoList.textContent = 'Nessun prodotto trovato per "' + searchTerm + '"';
-                    noResultsList.classList.add('active');
-                    tableContainer.style.display = 'none';
-                } else {
-                    searchResultsInfoList.textContent = 'Trovati ' + visibleCount + ' prodotti';
-                    noResultsList.classList.remove('active');
-                    tableContainer.style.display = 'block';
-                }
-            }
-        }
-        
-        function clearSearchList() {
-            searchInputList.value = '';
-            clearSearchBtnList.classList.remove('active');
-            filterProductsList('');
-            searchInputList.focus();
-        }
     </script>
 </body>
 </html>
