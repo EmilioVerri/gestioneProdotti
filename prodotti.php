@@ -1079,7 +1079,7 @@ menuItems.forEach(item => {
                                         <input type="number" name="quantita_<?php echo $i; ?>" min="0" value="0" required>
                                     </div>
                                     <div class="form-group">
-                                        <label>Minimo *</label>
+                                        <label>Allarme *</label>
                                         <input type="number" name="minimo_<?php echo $i; ?>" min="0" value="0" required>
                                     </div>
                                     <div class="form-group">
@@ -1143,7 +1143,7 @@ menuItems.forEach(item => {
                                             <span><?php echo $prodotto['quantita']; ?> pz</span>
                                         </div>
                                         <div class="info-row">
-                                            <span class="info-label">Minimo:</span>
+                                            <span class="info-label">Allarme:</span>
                                             <span><?php echo $prodotto['minimo']; ?> pz</span>
                                         </div>
                                         <div class="info-row">
@@ -1291,7 +1291,7 @@ menuItems.forEach(item => {
                         <input type="number" name="quantita_${newIndex}" min="0" value="0" required>
                     </div>
                     <div class="form-group">
-                        <label>Minimo *</label>
+                        <label>Allarme *</label>
                         <input type="number" name="minimo_${newIndex}" min="0" value="0" required>
                     </div>
                     <div class="form-group">
@@ -1366,7 +1366,7 @@ menuItems.forEach(item => {
                             <input type="number" name="comp_quantita_${prod.id}" value="${prod.quantita}" min="0" required>
                         </div>
                         <div class="form-group">
-                            <label>Minimo *</label>
+                            <label>Allarme *</label>
                             <input type="number" name="comp_minimo_${prod.id}" value="${prod.minimo || 0}" min="0" required>
                         </div>
                         <div class="form-group">
@@ -1416,7 +1416,7 @@ menuItems.forEach(item => {
                         <input type="number" name="nuovo_quantita_${index}" value="0" min="0" required>
                     </div>
                     <div class="form-group">
-                        <label>Minimo *</label>
+                        <label>Allarme *</label>
                         <input type="number" name="nuovo_minimo_${index}" value="0" min="0" required>
                     </div>
                     <div class="form-group">

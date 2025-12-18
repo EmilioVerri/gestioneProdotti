@@ -924,7 +924,7 @@ function buildUrlParams($pagina = null) {
                                 <th>Prodotto</th>
                                 <th>Movimento</th>
                                 <th>Utente</th>
-                                <th>NUMERO ISTA TAGLIO</th>
+                                <th>NUMERO LISTA TAGLIO</th>
                                 <th>NUMERO OFFERTA</th>
                                 <th>Descrizione</th>
                                 <th>Padre</th>
@@ -1147,7 +1147,7 @@ yPos += 6;
             
             doc.autoTable({
                 startY: yPos,
-                head: [['ID', 'Data/Ora', 'Prodotto', 'Tipo', 'Qta', 'Utente', 'Bolla', 'datoNumero', 'Descrizione','Padre']],
+                head: [['ID', 'Data/Ora', 'Prodotto', 'Tipo', 'Qta', 'Utente', 'Numero Lista Taglio', 'Numero Offerta', 'Descrizione','Padre']],
                 body: tableData,
                 styles: {
                     fontSize: 7,

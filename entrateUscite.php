@@ -1248,7 +1248,7 @@ foreach ($prodotti_per_padre as $padre => $figli) {
                             onclick="scrollToAndExpandPadre('<?php echo htmlspecialchars($prod['padre']); ?>', '<?php echo htmlspecialchars($prod['nome']); ?>')">
                             <div class="prodotto-allarme-nome"><?php echo htmlspecialchars($prod['nome']); ?></div>
                             <div class="prodotto-allarme-quantita">Gruppo: <strong><?php echo htmlspecialchars($prod['padre']); ?></strong></div>
-                            <div class="prodotto-allarme-quantita">Quantità: <strong><?php echo $prod['quantita']; ?></strong> / Minimo: <strong><?php echo $prod['minimo']; ?></strong></div>
+                            <div class="prodotto-allarme-quantita">Quantità: <strong><?php echo $prod['quantita']; ?></strong> / Allarme: <strong><?php echo $prod['minimo']; ?></strong></div>
                             <div style="margin-top: 8px; font-size: 12px; color: #1a1a1a; font-weight: 600;">
                                 <i class="fas fa-hand-pointer"></i> Clicca per visualizzare
                             </div>
@@ -1315,7 +1315,7 @@ foreach ($prodotti_per_padre as $padre => $figli) {
                                         </div>
 
                                         <div class="info-row">
-                                            <span class="info-label">Minimo:</span>
+                                            <span class="info-label">Allarme:</span>
                                             <span class="info-value"><?php echo $prod['minimo']; ?> pz</span>
                                         </div>
 
@@ -1534,7 +1534,7 @@ foreach ($prodotti_per_padre as $padre => $figli) {
             }
 
             productName.textContent = prodotto.nome;
-            productQty.textContent = `Quantità disponibile: ${prodotto.quantita} pz | Minimo: ${prodotto.minimo} pz`;
+            productQty.textContent = `Quantità disponibile: ${prodotto.quantita} pz | Allarme: ${prodotto.minimo} pz`;
 
             // Reset form e imposta valori
             const formQuick = document.getElementById('formQuick');
