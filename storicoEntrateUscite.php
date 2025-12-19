@@ -520,6 +520,32 @@ function buildUrlParams($pagina = null) {
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(255, 107, 107, 0.4);
         }
+        .export-buttons {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.btn-export-csv {
+    background: #4caf50;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s;
+}
+
+.btn-export-csv:hover {
+    background: #45a049;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+}
         
         .filters-grid {
             display: grid;
@@ -783,38 +809,44 @@ function buildUrlParams($pagina = null) {
             overflow-y: auto;
         }
         
-        @media (max-width: 768px) {
-            .navbar h1 {
-                font-size: 18px;
-            }
-            
-            .user-info span {
-                display: none;
-            }
-            
-            .filters-grid {
-                grid-template-columns: 1fr;
-            }
-            
-            .filter-buttons {
-                flex-direction: column;
-            }
-            
-            .btn-filter {
-                width: 100%;
-            }
-            
-            .filters-header {
-                flex-direction: column;
-                gap: 15px;
-                align-items: flex-start;
-            }
-            
-            .btn-export-pdf {
-                width: 100%;
-                justify-content: center;
-            }
-        }
+      @media (max-width: 768px) {
+    .navbar h1 {
+        font-size: 18px;
+    }
+    
+    .user-info span {
+        display: none;
+    }
+    
+    .filters-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .filter-buttons {
+        flex-direction: column;
+    }
+    
+    .btn-filter {
+        width: 100%;
+    }
+    
+    .filters-header {
+        flex-direction: column;
+        gap: 15px;
+        align-items: flex-start;
+    }
+    
+    .export-buttons {
+        width: 100%;
+        flex-direction: column;
+    }
+    
+    .btn-export-pdf,
+    .btn-export-csv {
+        width: 100%;
+        justify-content: center;
+    }
+}
     </style>
 </head>
 <body>
@@ -886,16 +918,22 @@ function buildUrlParams($pagina = null) {
         
         <!-- Filtri -->
         <div class="filters-card">
-            <div class="filters-header">
-                <div class="filters-title">
-                    <span class="filter-icon">🔍</span>
-                    <h3>Filtri di Ricerca</h3>
-                </div>
-                <button class="btn-export-pdf" onclick="esportaPDF()">
-                    <span>📄</span>
-                    <span>Esporta PDF</span>
-                </button>
-            </div>
+           <div class="filters-header">
+    <div class="filters-title">
+        <span class="filter-icon">🔍</span>
+        <h3>Filtri di Ricerca</h3>
+    </div>
+    <div class="export-buttons">
+        <button class="btn-export-pdf" onclick="esportaPDF()">
+            <span>📄</span>
+            <span>Esporta PDF</span>
+        </button>
+        <button class="btn-export-csv" onclick="esportaCSV()">
+            <span>📊</span>
+            <span>Esporta CSV</span>
+        </button>
+    </div>
+</div>
             
             <form method="GET" action="">
                 <div class="filters-grid">
@@ -1271,7 +1309,126 @@ yPos += 6;
             const dataOggi = new Date().toISOString().split('T')[0];
             doc.save('storico_movimenti_' + dataOggi + '.pdf');
         }
+
+// Funzione esporta CSV
+function esportaCSV() {
+    if (movimentiData.length === 0) {
+        alert('Nessun movimento da esportare!');
+        return;
+    }
+    
+    // Intestazioni CSV
+    const headers = [
+        'Data/Ora',
+        'Prodotto',
+        'Tipo Movimento',
+        'Quantità',
+        'Utente',
+        'Numero Lista Taglio',
+        'Numero Offerta',
+        'Descrizione',
+        'ID Padre'
+    ];
+    
+    // Prepara i dati
+    let csvContent = '\uFEFF'; // BOM UTF-8 per Excel
+    
+    // Aggiungi informazioni sui filtri attivi
+    csvContent += '"Storico Movimenti Magazzino"\n';
+    csvContent += '"Data generazione: ' + new Date().toLocaleString('it-IT') + '"\n';
+    <?php if ($tipoFiltro !== 'tutti'): ?>
+    csvContent += '"Tipo: <?php echo ucfirst($tipoFiltro); ?>"\n';
+    <?php endif; ?>
+    <?php if ($prodottoFiltro): ?>
+    csvContent += '"Prodotto: <?php echo htmlspecialchars($prodottoFiltro); ?>"\n';
+    <?php endif; ?>
+    <?php if ($dataInizio): ?>
+    csvContent += '"Data Inizio: <?php echo htmlspecialchars($dataInizio); ?>"\n';
+    <?php endif; ?>
+    <?php if ($dataFine): ?>
+    csvContent += '"Data Fine: <?php echo htmlspecialchars($dataFine); ?>"\n';
+    <?php endif; ?>
+    <?php if ($padreFiltro): ?>
+    csvContent += '"ID Padre: <?php echo htmlspecialchars($padreFiltro); ?>"\n';
+    <?php endif; ?>
+    <?php if ($bollaFiltro): ?>
+    csvContent += '"Numero Lista Taglio: <?php echo htmlspecialchars($bollaFiltro); ?>"\n';
+    <?php endif; ?>
+    <?php if ($datoFiltro): ?>
+    csvContent += '"Numero Offerta: <?php echo htmlspecialchars($datoFiltro); ?>"\n';
+    <?php endif; ?>
+    <?php if ($descrizioneFiltro): ?>
+    csvContent += '"Descrizione: <?php echo htmlspecialchars($descrizioneFiltro); ?>"\n';
+    <?php endif; ?>
+    csvContent += '"Totale movimenti: ' + movimentiData.length + '"\n\n';
+    
+    // Aggiungi intestazioni
+    csvContent += headers.map(h => '"' + h + '"').join(';') + '\n';
+    
+    // Variabili per statistiche
+    let totaleEntrateCSV = 0;
+    let totaleUsciteCSV = 0;
+    
+    // Aggiungi dati
+    movimentiData.forEach(mov => {
+        const isUscita = mov.movimento.toString().startsWith('-');
+        const movimentoNum = Math.abs(parseInt(mov.movimento));
+        const movimento = isUscita ? '-' + movimentoNum : '+' + movimentoNum;
+        const tipo = isUscita ? 'USCITA' : 'ENTRATA';
         
+        // Calcola statistiche
+        if (isUscita) {
+            totaleUsciteCSV += movimentoNum;
+        } else {
+            totaleEntrateCSV += movimentoNum;
+        }
+        
+        // Pulisci descrizione da virgole e virgolette
+        const descrizione = (mov.descrizione || '-')
+            .replace(/"/g, '""')
+            .replace(/\n/g, ' ')
+            .replace(/\r/g, '');
+        
+        const row = [
+            mov.dataMovimento,
+            mov.idProdotto,
+            tipo,
+            movimento,
+            mov.idUtente,
+            mov.bollaNumero || '-',
+            mov.datoNumero || '-',
+            descrizione,
+            mov.idPadre || '-'
+        ];
+        
+        csvContent += row.map(cell => '"' + cell + '"').join(';') + '\n';
+    });
+    
+    // Aggiungi statistiche finali
+    csvContent += '\n';
+    csvContent += '"STATISTICHE"\n';
+    csvContent += '"Totale Entrate";"+' + totaleEntrateCSV + '"\n';
+    csvContent += '"Totale Uscite";"-' + totaleUsciteCSV + '"\n';
+    csvContent += '"Totale Movimenti";"' + movimentiData.length + '"\n';
+    
+    // Crea il file e scarica
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    
+    if (link.download !== undefined) {
+        const url = URL.createObjectURL(blob);
+        const dataOggi = new Date().toISOString().split('T')[0];
+        link.setAttribute('href', url);
+        link.setAttribute('download', 'storico_movimenti_' + dataOggi + '.csv');
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    } else {
+        alert('Il tuo browser non supporta il download automatico. Copia i dati dalla console.');
+        console.log(csvContent);
+    }
+}
         window.addEventListener('load', function() {
             document.querySelectorAll('.stat-card, .filters-card, .table-card').forEach((el, index) => {
                 el.style.animationDelay = (index * 0.1) + 's';
