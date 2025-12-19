@@ -127,13 +127,13 @@ try {
     $stmtStats = $pdo->prepare($queryStats);
     $stmtStats->execute($params);
     $movimentiStats = $stmtStats->fetchAll(PDO::FETCH_ASSOC);
-    
+
     $totaleEntrate = 0;
     $totaleUscite = 0;
     foreach ($movimentiStats as $mov) {
         $movimentoValue = str_replace('+', '', $mov['movimento']);
         $movimentoValue = intval($movimentoValue);
-        
+
         if (strpos($mov['movimento'], '-') === 0) {
             $totaleUscite += abs($movimentoValue);
         } else {
@@ -146,10 +146,11 @@ try {
 }
 
 // Funzione helper per costruire URL con parametri
-function buildUrlParams($pagina = null) {
+function buildUrlParams($pagina = null)
+{
     global $tipoFiltro, $prodottoFiltro, $dataInizio, $dataFine, $padreFiltro, $bollaFiltro, $datoFiltro, $descrizioneFiltro;
     $params = [];
-    
+
     if ($pagina !== null) {
         $params[] = 'pagina=' . $pagina;
     }
@@ -177,12 +178,13 @@ function buildUrlParams($pagina = null) {
     if ($descrizioneFiltro) {
         $params[] = 'descrizione_filtro=' . urlencode($descrizioneFiltro);
     }
-    
+
     return !empty($params) ? '?' . implode('&', $params) : '';
 }
 ?>
 <!DOCTYPE html>
 <html lang="it">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -195,13 +197,13 @@ function buildUrlParams($pagina = null) {
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: #f5f5f5;
             min-height: 100vh;
         }
-        
+
         /* Sidebar */
         .sidebar {
             position: fixed;
@@ -214,17 +216,17 @@ function buildUrlParams($pagina = null) {
             z-index: 1000;
             box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3);
         }
-        
+
         .sidebar.active {
             left: 0;
         }
-        
+
         .sidebar-header {
             padding: 30px 20px;
             border-bottom: 1px solid #333;
             text-align: center;
         }
-        
+
         .sidebar-logo {
             width: 80px;
             height: 80px;
@@ -239,17 +241,17 @@ function buildUrlParams($pagina = null) {
             color: #1a1a1a;
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
         }
-        
+
         .sidebar-title {
             color: white;
             font-size: 18px;
             font-weight: 600;
         }
-        
+
         .sidebar-menu {
             padding: 20px 0;
         }
-        
+
         .menu-item {
             padding: 15px 25px;
             color: white;
@@ -261,28 +263,28 @@ function buildUrlParams($pagina = null) {
             border-left: 3px solid transparent;
             text-decoration: none;
         }
-        
+
         .menu-item:hover {
             background: #2d2d2d;
             border-left-color: white;
             transform: translateX(5px);
         }
-        
+
         .menu-item.active {
             background: #2d2d2d;
             border-left-color: white;
         }
-        
+
         .menu-icon {
             font-size: 24px;
             width: 30px;
             text-align: center;
         }
-        
+
         .menu-text {
             font-size: 15px;
         }
-        
+
         /* Overlay */
         .overlay {
             position: fixed;
@@ -296,12 +298,12 @@ function buildUrlParams($pagina = null) {
             transition: opacity 0.3s ease, visibility 0.3s ease;
             z-index: 999;
         }
-        
+
         .overlay.active {
             opacity: 1;
             visibility: visible;
         }
-        
+
         /* Navbar */
         .navbar {
             position: fixed;
@@ -317,13 +319,13 @@ function buildUrlParams($pagina = null) {
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             z-index: 998;
         }
-        
+
         .navbar-left {
             display: flex;
             align-items: center;
             gap: 20px;
         }
-        
+
         .menu-toggle {
             background: none;
             border: none;
@@ -334,12 +336,12 @@ function buildUrlParams($pagina = null) {
             transition: all 0.3s;
             border-radius: 5px;
         }
-        
+
         .menu-toggle:hover {
             background: #2d2d2d;
             transform: scale(1.05);
         }
-        
+
         .navbar-logo {
             width: 45px;
             height: 45px;
@@ -353,17 +355,17 @@ function buildUrlParams($pagina = null) {
             color: #1a1a1a;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
         }
-        
+
         .navbar h1 {
             font-size: 24px;
         }
-        
+
         .user-info {
             display: flex;
             align-items: center;
             gap: 20px;
         }
-        
+
         .btn-logout {
             background: white;
             color: #1a1a1a;
@@ -376,18 +378,18 @@ function buildUrlParams($pagina = null) {
             text-decoration: none;
             display: inline-block;
         }
-        
+
         .btn-logout:hover {
             background: #f0f0f0;
             transform: translateY(-2px);
         }
-        
+
         .container {
             max-width: 1400px;
             margin: 100px auto 40px;
             padding: 0 20px;
         }
-        
+
         .page-header {
             background: white;
             padding: 30px;
@@ -396,29 +398,30 @@ function buildUrlParams($pagina = null) {
             margin-bottom: 30px;
             animation: fadeIn 0.5s;
         }
-        
+
         @keyframes fadeIn {
             from {
                 opacity: 0;
                 transform: translateY(20px);
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0);
             }
         }
-        
+
         .page-header h2 {
             color: #1a1a1a;
             font-size: 28px;
             margin-bottom: 10px;
         }
-        
+
         .page-header p {
             color: #666;
             font-size: 14px;
         }
-        
+
         /* Stats */
         .stats {
             display: grid;
@@ -426,7 +429,7 @@ function buildUrlParams($pagina = null) {
             gap: 20px;
             margin-bottom: 30px;
         }
-        
+
         .stat-card {
             background: white;
             padding: 25px;
@@ -435,26 +438,26 @@ function buildUrlParams($pagina = null) {
             text-align: center;
             animation: fadeIn 0.7s;
         }
-        
+
         .stat-card h4 {
             font-size: 14px;
             color: #666;
             margin-bottom: 10px;
         }
-        
+
         .stat-card .number {
             font-size: 32px;
             font-weight: bold;
         }
-        
+
         .stat-entrate {
             color: #4caf50;
         }
-        
+
         .stat-uscite {
             color: #ff6b6b;
         }
-        
+
         /* Filters Card */
         .filters-card {
             background: white;
@@ -464,18 +467,19 @@ function buildUrlParams($pagina = null) {
             margin-bottom: 30px;
             animation: slideUp 0.5s;
         }
-        
+
         @keyframes slideUp {
             from {
                 opacity: 0;
                 transform: translateY(30px);
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0);
             }
         }
-        
+
         .filters-header {
             display: flex;
             justify-content: space-between;
@@ -484,22 +488,22 @@ function buildUrlParams($pagina = null) {
             padding-bottom: 15px;
             border-bottom: 2px solid #f0f0f0;
         }
-        
+
         .filters-title {
             display: flex;
             align-items: center;
             gap: 15px;
         }
-        
+
         .filter-icon {
             font-size: 28px;
         }
-        
+
         .filters-title h3 {
             color: #1a1a1a;
             font-size: 20px;
         }
-        
+
         .btn-export-pdf {
             background: #ff6b6b;
             color: white;
@@ -514,58 +518,59 @@ function buildUrlParams($pagina = null) {
             gap: 8px;
             transition: all 0.3s;
         }
-        
+
         .btn-export-pdf:hover {
             background: #ff5252;
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(255, 107, 107, 0.4);
         }
+
         .export-buttons {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-}
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
 
-.btn-export-csv {
-    background: #4caf50;
-    color: white;
-    padding: 10px 20px;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    font-weight: 600;
-    font-size: 14px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    transition: all 0.3s;
-}
+        .btn-export-csv {
+            background: #4caf50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s;
+        }
 
-.btn-export-csv:hover {
-    background: #45a049;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
-}
-        
+        .btn-export-csv:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+        }
+
         .filters-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             gap: 20px;
             margin-bottom: 20px;
         }
-        
+
         .filter-group {
             display: flex;
             flex-direction: column;
         }
-        
+
         .filter-group label {
             margin-bottom: 8px;
             color: #1a1a1a;
             font-weight: 500;
             font-size: 14px;
         }
-        
+
         .filter-group input,
         .filter-group select {
             padding: 10px 12px;
@@ -575,20 +580,20 @@ function buildUrlParams($pagina = null) {
             transition: all 0.3s;
             background: #f9f9f9;
         }
-        
+
         .filter-group input:focus,
         .filter-group select:focus {
             outline: none;
             border-color: #1a1a1a;
             background: white;
         }
-        
+
         .filter-buttons {
             display: flex;
             gap: 10px;
             justify-content: flex-end;
         }
-        
+
         .btn-filter {
             padding: 10px 25px;
             border: none;
@@ -598,28 +603,28 @@ function buildUrlParams($pagina = null) {
             font-size: 14px;
             transition: all 0.3s;
         }
-        
+
         .btn-apply {
             background: #1a1a1a;
             color: white;
         }
-        
+
         .btn-apply:hover {
             background: #000;
             transform: translateY(-2px);
         }
-        
+
         .btn-reset {
             background: #e0e0e0;
             color: #1a1a1a;
             text-decoration: none;
             display: inline-block;
         }
-        
+
         .btn-reset:hover {
             background: #d0d0d0;
         }
-        
+
         /* Table Card */
         .table-card {
             background: white;
@@ -628,7 +633,7 @@ function buildUrlParams($pagina = null) {
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             animation: slideUp 0.6s;
         }
-        
+
         .table-header {
             display: flex;
             align-items: center;
@@ -637,30 +642,30 @@ function buildUrlParams($pagina = null) {
             padding-bottom: 15px;
             border-bottom: 2px solid #f0f0f0;
         }
-        
+
         .table-icon {
             font-size: 28px;
         }
-        
+
         .table-header h3 {
             color: #1a1a1a;
             font-size: 20px;
         }
-        
+
         .table-wrapper {
             overflow-x: auto;
         }
-        
+
         .movimenti-table {
             width: 100%;
             border-collapse: collapse;
             min-width: 800px;
         }
-        
+
         .movimenti-table thead {
             background: #f9f9f9;
         }
-        
+
         .movimenti-table th {
             padding: 15px;
             text-align: left;
@@ -669,39 +674,39 @@ function buildUrlParams($pagina = null) {
             color: #666;
             text-transform: uppercase;
         }
-        
+
         .movimenti-table td {
             padding: 15px;
             border-bottom: 1px solid #f0f0f0;
         }
-        
+
         .movimenti-table tbody tr {
             transition: all 0.3s;
         }
-        
+
         .movimenti-table tbody tr:hover {
             transform: scale(1.002);
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
-        
+
         .row-entrata {
             background: #e8f5e9 !important;
             border-left: 4px solid #4caf50;
         }
-        
+
         .row-entrata:hover {
             background: #c8e6c9 !important;
         }
-        
+
         .row-uscita {
             background: #ffebee !important;
             border-left: 4px solid #ff6b6b;
         }
-        
+
         .row-uscita:hover {
             background: #ffcdd2 !important;
         }
-        
+
         .badge-movimento {
             display: inline-flex;
             align-items: center;
@@ -711,34 +716,34 @@ function buildUrlParams($pagina = null) {
             font-weight: 600;
             font-size: 13px;
         }
-        
+
         .badge-entrata {
             background: #4caf50;
             color: white;
         }
-        
+
         .badge-uscita {
             background: #ff6b6b;
             color: white;
         }
-        
+
         .prodotto-nome {
             font-weight: 600;
             color: #1a1a1a;
         }
-        
+
         .no-data {
             text-align: center;
             padding: 60px;
             color: #999;
         }
-        
+
         .no-data-icon {
             font-size: 60px;
             margin-bottom: 15px;
             opacity: 0.3;
         }
-        
+
         /* Pagination */
         .pagination {
             display: flex;
@@ -749,7 +754,7 @@ function buildUrlParams($pagina = null) {
             padding: 20px 0;
             flex-wrap: wrap;
         }
-        
+
         .pagination-btn {
             padding: 8px 16px;
             border: 2px solid #e0e0e0;
@@ -762,30 +767,30 @@ function buildUrlParams($pagina = null) {
             text-decoration: none;
             display: inline-block;
         }
-        
+
         .pagination-btn:hover:not(:disabled) {
             background: #1a1a1a;
             color: white;
             border-color: #1a1a1a;
         }
-        
+
         .pagination-btn.active {
             background: #1a1a1a;
             color: white;
             border-color: #1a1a1a;
         }
-        
+
         .pagination-btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
         }
-        
+
         .pagination-info {
             color: #666;
             font-size: 14px;
             padding: 0 10px;
         }
-        
+
         .debug-box {
             background: #fff3cd;
             border: 2px solid #ffc107;
@@ -793,12 +798,12 @@ function buildUrlParams($pagina = null) {
             padding: 20px;
             margin-bottom: 20px;
         }
-        
+
         .debug-box h3 {
             color: #856404;
             margin-bottom: 15px;
         }
-        
+
         .debug-box pre {
             background: white;
             padding: 15px;
@@ -808,61 +813,62 @@ function buildUrlParams($pagina = null) {
             max-height: 400px;
             overflow-y: auto;
         }
-        
-      @media (max-width: 768px) {
-    .navbar h1 {
-        font-size: 18px;
-    }
-    
-    .user-info span {
-        display: none;
-    }
-    
-    .filters-grid {
-        grid-template-columns: 1fr;
-    }
-    
-    .filter-buttons {
-        flex-direction: column;
-    }
-    
-    .btn-filter {
-        width: 100%;
-    }
-    
-    .filters-header {
-        flex-direction: column;
-        gap: 15px;
-        align-items: flex-start;
-    }
-    
-    .export-buttons {
-        width: 100%;
-        flex-direction: column;
-    }
-    
-    .btn-export-pdf,
-    .btn-export-csv {
-        width: 100%;
-        justify-content: center;
-    }
-}
+
+        @media (max-width: 768px) {
+            .navbar h1 {
+                font-size: 18px;
+            }
+
+            .user-info span {
+                display: none;
+            }
+
+            .filters-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .filter-buttons {
+                flex-direction: column;
+            }
+
+            .btn-filter {
+                width: 100%;
+            }
+
+            .filters-header {
+                flex-direction: column;
+                gap: 15px;
+                align-items: flex-start;
+            }
+
+            .export-buttons {
+                width: 100%;
+                flex-direction: column;
+            }
+
+            .btn-export-pdf,
+            .btn-export-csv {
+                width: 100%;
+                justify-content: center;
+            }
+        }
     </style>
 </head>
+
 <body>
     <!-- Overlay -->
     <div class="overlay" id="overlay"></div>
-    
+
     <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
             <div class="sidebar-logo">GP</div>
             <div class="sidebar-title">Gestione Prodotti</div>
         </div>
-        
+
         <?php include './widget/menu.php'; ?>
     </div>
-    
+
     <!-- Navbar -->
     <nav class="navbar">
         <div class="navbar-left">
@@ -875,31 +881,31 @@ function buildUrlParams($pagina = null) {
             <a href="./logout.php" class="btn-logout">Logout</a>
         </div>
     </nav>
-    
+
     <div class="container">
         <!-- DEBUG MODE -->
         <?php if (isset($_GET['debug'])): ?>
-        <div class="debug-box">
-            <h3>🔍 DEBUG - Informazioni Database</h3>
-            <pre><?php
-                echo "Totale record: " . $pdo->query("SELECT COUNT(*) FROM storicomovimenti")->fetchColumn() . "\n\n";
-                echo "Ultimi 10 record:\n";
-                $debugStmt = $pdo->query("SELECT * FROM storicomovimenti ORDER BY id DESC LIMIT 10");
-                print_r($debugStmt->fetchAll(PDO::FETCH_ASSOC));
-                echo "\n\nQuery utilizzata:\n" . $query;
-                echo "\n\nParametri:\n";
-                print_r($params);
-            ?></pre>
-            <p style="margin-top: 15px;"><a href="?" style="color: #856404; font-weight: bold;">← Torna alla vista normale</a></p>
-        </div>
+            <div class="debug-box">
+                <h3>🔍 DEBUG - Informazioni Database</h3>
+                <pre><?php
+                        echo "Totale record: " . $pdo->query("SELECT COUNT(*) FROM storicomovimenti")->fetchColumn() . "\n\n";
+                        echo "Ultimi 10 record:\n";
+                        $debugStmt = $pdo->query("SELECT * FROM storicomovimenti ORDER BY id DESC LIMIT 10");
+                        print_r($debugStmt->fetchAll(PDO::FETCH_ASSOC));
+                        echo "\n\nQuery utilizzata:\n" . $query;
+                        echo "\n\nParametri:\n";
+                        print_r($params);
+                        ?></pre>
+                <p style="margin-top: 15px;"><a href="?" style="color: #856404; font-weight: bold;">← Torna alla vista normale</a></p>
+            </div>
         <?php endif; ?>
-        
+
         <div class="page-header">
             <h2>Storico Movimenti Magazzino</h2>
             <p>Visualizza tutti i movimenti ordinati dal più recente (50 righe per pagina)
             </p>
         </div>
-        
+
         <!-- Statistiche -->
         <div class="stats">
             <div class="stat-card">
@@ -915,26 +921,26 @@ function buildUrlParams($pagina = null) {
                 <div class="number stat-uscite">-<?php echo $totaleUscite; ?></div>
             </div>
         </div>
-        
+
         <!-- Filtri -->
         <div class="filters-card">
-           <div class="filters-header">
-    <div class="filters-title">
-        <span class="filter-icon">🔍</span>
-        <h3>Filtri di Ricerca</h3>
-    </div>
-    <div class="export-buttons">
-        <button class="btn-export-pdf" onclick="esportaPDF()">
-            <span>📄</span>
-            <span>Esporta PDF</span>
-        </button>
-        <button class="btn-export-csv" onclick="esportaCSV()">
-            <span>📊</span>
-            <span>Esporta CSV</span>
-        </button>
-    </div>
-</div>
-            
+            <div class="filters-header">
+                <div class="filters-title">
+                    <span class="filter-icon">🔍</span>
+                    <h3>Filtri di Ricerca</h3>
+                </div>
+                <div class="export-buttons">
+                    <button class="btn-export-pdf" onclick="esportaPDF()">
+                        <span>📄</span>
+                        <span>Esporta PDF</span>
+                    </button>
+                    <button class="btn-export-csv" onclick="esportaCSV()">
+                        <span>📊</span>
+                        <span>Esporta CSV</span>
+                    </button>
+                </div>
+            </div>
+
             <form method="GET" action="">
                 <div class="filters-grid">
                     <div class="filter-group">
@@ -945,56 +951,56 @@ function buildUrlParams($pagina = null) {
                             <option value="uscite" <?php echo $tipoFiltro === 'uscite' ? 'selected' : ''; ?>>Solo Uscite (Rosso)</option>
                         </select>
                     </div>
-                    
+
                     <div class="filter-group">
                         <label for="prodotto_filtro">Cerca Prodotto</label>
                         <input type="text" id="prodotto_filtro" name="prodotto_filtro" placeholder="Nome prodotto..." value="<?php echo htmlspecialchars($prodottoFiltro); ?>">
                     </div>
-                    
+
                     <div class="filter-group">
                         <label for="data_inizio">📅 Data Inizio</label>
                         <input type="date" id="data_inizio" name="data_inizio" value="<?php echo htmlspecialchars($dataInizio); ?>">
                     </div>
-                    
+
                     <div class="filter-group">
                         <label for="data_fine">📅 Data Fine</label>
                         <input type="date" id="data_fine" name="data_fine" value="<?php echo htmlspecialchars($dataFine); ?>">
                     </div>
 
                     <div class="filter-group">
-    <label for="padre_filtro">🔗 ID Padre</label>
-    <input type="text" id="padre_filtro" name="padre_filtro" placeholder="Cerca per ID Padre..." value="<?php echo htmlspecialchars($padreFiltro); ?>">
-</div>
-<div class="filter-group">
-    <label for="bolla_filtro">📋 Numero Lista Taglio</label>
-    <input type="text" id="bolla_filtro" name="bolla_filtro" placeholder="Cerca Numero Lista Taglio..." value="<?php echo htmlspecialchars($bollaFiltro); ?>">
-</div>
+                        <label for="padre_filtro">🔗 ID Padre</label>
+                        <input type="text" id="padre_filtro" name="padre_filtro" placeholder="Cerca per ID Padre..." value="<?php echo htmlspecialchars($padreFiltro); ?>">
+                    </div>
+                    <div class="filter-group">
+                        <label for="bolla_filtro">📋 Numero Lista Taglio</label>
+                        <input type="text" id="bolla_filtro" name="bolla_filtro" placeholder="Cerca Numero Lista Taglio..." value="<?php echo htmlspecialchars($bollaFiltro); ?>">
+                    </div>
 
-<div class="filter-group">
-    <label for="dato_filtro">📄 Numero Offerta</label>
-    <input type="text" id="dato_filtro" name="dato_filtro" placeholder="Cerca Numero Offerta..." value="<?php echo htmlspecialchars($datoFiltro); ?>">
-</div>
+                    <div class="filter-group">
+                        <label for="dato_filtro">📄 Numero Offerta</label>
+                        <input type="text" id="dato_filtro" name="dato_filtro" placeholder="Cerca Numero Offerta..." value="<?php echo htmlspecialchars($datoFiltro); ?>">
+                    </div>
 
-<div class="filter-group">
-    <label for="descrizione_filtro">📝 Descrizione</label>
-    <input type="text" id="descrizione_filtro" name="descrizione_filtro" placeholder="Cerca nella Descrizione..." value="<?php echo htmlspecialchars($descrizioneFiltro); ?>">
-</div>
+                    <div class="filter-group">
+                        <label for="descrizione_filtro">📝 Descrizione</label>
+                        <input type="text" id="descrizione_filtro" name="descrizione_filtro" placeholder="Cerca nella Descrizione..." value="<?php echo htmlspecialchars($descrizioneFiltro); ?>">
+                    </div>
                 </div>
-                
+
                 <div class="filter-buttons">
                     <a href="storicoEntrateUscite.php" class="btn-filter btn-reset">Resetta Filtri</a>
                     <button type="submit" class="btn-filter btn-apply">Applica Filtri</button>
                 </div>
             </form>
         </div>
-        
+
         <!-- Tabella Movimenti -->
         <div class="table-card">
             <div class="table-header">
                 <span class="table-icon">📋</span>
                 <h3>Elenco Movimenti (Pagina <?php echo $paginaCorrente; ?> di <?php echo $totalePagine; ?>)</h3>
             </div>
-            
+
             <?php if (count($movimenti) > 0): ?>
                 <div class="table-wrapper">
                     <table class="movimenti-table">
@@ -1013,12 +1019,13 @@ function buildUrlParams($pagina = null) {
                         </thead>
                         <tbody>
                             <?php foreach ($movimenti as $mov): ?>
-                                <?php 
+                                <?php
                                 $isUscita = (strpos($mov['movimento'], '-') === 0);
                                 $movimentoValue = abs(intval($mov['movimento']));
                                 ?>
                                 <tr class="<?php echo $isUscita ? 'row-uscita' : 'row-entrata'; ?>">
-                                   <!-- <td><?php //echo htmlspecialchars($mov['id']); ?></td>-->
+                                    <!-- <td><?php //echo htmlspecialchars($mov['id']); 
+                                                ?></td>-->
                                     <td><?php echo htmlspecialchars($mov['dataMovimento']); ?></td>
                                     <td class="prodotto-nome"><?php echo htmlspecialchars($mov['idProdotto']); ?></td>
                                     <td>
@@ -1037,7 +1044,7 @@ function buildUrlParams($pagina = null) {
                         </tbody>
                     </table>
                 </div>
-                
+
                 <!-- Paginazione -->
                 <?php if ($totalePagine > 1): ?>
                     <div class="pagination">
@@ -1048,38 +1055,38 @@ function buildUrlParams($pagina = null) {
                         <?php else: ?>
                             <button class="pagination-btn" disabled>← Precedente</button>
                         <?php endif; ?>
-                        
+
                         <?php
                         $range = 2;
                         $start = max(1, $paginaCorrente - $range);
                         $end = min($totalePagine, $paginaCorrente + $range);
-                        
+
                         if ($start > 1) {
-                            ?>
+                        ?>
                             <a href="<?php echo buildUrlParams(1); ?>" class="pagination-btn">1</a>
                             <?php if ($start > 2): ?>
                                 <span class="pagination-info">...</span>
                             <?php endif;
                         }
-                        
+
                         for ($i = $start; $i <= $end; $i++): ?>
-                            <a href="<?php echo buildUrlParams($i); ?>" 
-                               class="pagination-btn <?php echo $i === $paginaCorrente ? 'active' : ''; ?>">
+                            <a href="<?php echo buildUrlParams($i); ?>"
+                                class="pagination-btn <?php echo $i === $paginaCorrente ? 'active' : ''; ?>">
                                 <?php echo $i; ?>
                             </a>
-                        <?php endfor;
-                        
+                            <?php endfor;
+
                         if ($end < $totalePagine) {
                             if ($end < $totalePagine - 1): ?>
                                 <span class="pagination-info">...</span>
                             <?php endif; ?>
                             <a href="<?php echo buildUrlParams($totalePagine); ?>" class="pagination-btn"><?php echo $totalePagine; ?></a>
                         <?php } ?>
-                        
+
                         <span class="pagination-info">
                             Pagina <?php echo $paginaCorrente; ?> di <?php echo $totalePagine; ?>
                         </span>
-                        
+
                         <?php if ($paginaCorrente < $totalePagine): ?>
                             <a href="<?php echo buildUrlParams($paginaCorrente + 1); ?>" class="pagination-btn">
                                 Successiva →
@@ -1098,16 +1105,16 @@ function buildUrlParams($pagina = null) {
             <?php endif; ?>
         </div>
     </div>
-    
+
     <script>
         // Toggle Sidebar
         const menuToggle = document.getElementById('menuToggle');
         const sidebar = document.getElementById('sidebar');
         const overlay = document.getElementById('overlay');
-        
+
         function toggleSidebar() {
             const isActive = sidebar.classList.contains('active');
-            
+
             if (isActive) {
                 sidebar.classList.remove('active');
                 overlay.classList.remove('active');
@@ -1118,14 +1125,14 @@ function buildUrlParams($pagina = null) {
                 document.body.style.overflow = 'hidden';
             }
         }
-        
+
         menuToggle.addEventListener('click', function(e) {
             e.stopPropagation();
             toggleSidebar();
         });
-        
+
         overlay.addEventListener('click', toggleSidebar);
-        
+
         const menuItems = document.querySelectorAll('.menu-item');
         menuItems.forEach(item => {
             item.addEventListener('click', function() {
@@ -1134,99 +1141,101 @@ function buildUrlParams($pagina = null) {
                 }
             });
         });
-        
+
         // Dati movimenti per export PDF
-        const movimentiData = <?php 
-            $queryPdf = str_replace(" ORDER BY id DESC LIMIT $righePerPagina OFFSET $offset", " ORDER BY id DESC", $query);
-            try {
-                $stmtPdf = $pdo->prepare($queryPdf);
-                $stmtPdf->execute($params);
-                $movimentiPdf = $stmtPdf->fetchAll(PDO::FETCH_ASSOC);
-                echo json_encode($movimentiPdf);
-            } catch (PDOException $e) {
-                echo '[]';
-            }
-        ?>;
-        
+        const movimentiData = <?php
+                                $queryPdf = str_replace(" ORDER BY id DESC LIMIT $righePerPagina OFFSET $offset", " ORDER BY id DESC", $query);
+                                try {
+                                    $stmtPdf = $pdo->prepare($queryPdf);
+                                    $stmtPdf->execute($params);
+                                    $movimentiPdf = $stmtPdf->fetchAll(PDO::FETCH_ASSOC);
+                                    echo json_encode($movimentiPdf);
+                                } catch (PDOException $e) {
+                                    echo '[]';
+                                }
+                                ?>;
+
         // Funzione esporta PDF
         async function esportaPDF() {
             if (movimentiData.length === 0) {
                 alert('Nessun movimento da esportare!');
                 return;
             }
-            
-            const { jsPDF } = window.jspdf;
+
+            const {
+                jsPDF
+            } = window.jspdf;
             const doc = new jsPDF({
                 orientation: 'landscape',
                 unit: 'mm',
                 format: 'a4'
             });
-            
+
             doc.setFontSize(18);
             doc.setFont(undefined, 'bold');
             doc.text('Storico Movimenti Magazzino', 14, 20);
-            
+
             doc.setFontSize(10);
             doc.setFont(undefined, 'normal');
             let yPos = 30;
-            
+
             <?php if ($tipoFiltro !== 'tutti'): ?>
-            doc.text('Tipo: <?php echo ucfirst($tipoFiltro); ?>', 14, yPos);
-            yPos += 6;
+                doc.text('Tipo: <?php echo ucfirst($tipoFiltro); ?>', 14, yPos);
+                yPos += 6;
             <?php endif; ?>
-            
+
             <?php if ($prodottoFiltro): ?>
-            doc.text('Prodotto: <?php echo htmlspecialchars($prodottoFiltro); ?>', 14, yPos);
-            yPos += 6;
+                doc.text('Prodotto: <?php echo htmlspecialchars($prodottoFiltro); ?>', 14, yPos);
+                yPos += 6;
             <?php endif; ?>
-            
+
             <?php if ($dataInizio): ?>
-            doc.text('Data Inizio: <?php echo htmlspecialchars($dataInizio); ?>', 14, yPos);
-            yPos += 6;
+                doc.text('Data Inizio: <?php echo htmlspecialchars($dataInizio); ?>', 14, yPos);
+                yPos += 6;
             <?php endif; ?>
-            
+
             <?php if ($dataFine): ?>
-            doc.text('Data Fine: <?php echo htmlspecialchars($dataFine); ?>', 14, yPos);
-            yPos += 6;
+                doc.text('Data Fine: <?php echo htmlspecialchars($dataFine); ?>', 14, yPos);
+                yPos += 6;
             <?php endif; ?>
             <?php if ($padreFiltro): ?>
-doc.text('ID Padre: <?php echo htmlspecialchars($padreFiltro); ?>', 14, yPos);
-yPos += 6;
-<?php endif; ?>
-<?php if ($bollaFiltro): ?>
-doc.text('Numero Lista Taglio: <?php echo htmlspecialchars($bollaFiltro); ?>', 14, yPos);
-yPos += 6;
-<?php endif; ?>
+                doc.text('ID Padre: <?php echo htmlspecialchars($padreFiltro); ?>', 14, yPos);
+                yPos += 6;
+            <?php endif; ?>
+            <?php if ($bollaFiltro): ?>
+                doc.text('Numero Lista Taglio: <?php echo htmlspecialchars($bollaFiltro); ?>', 14, yPos);
+                yPos += 6;
+            <?php endif; ?>
 
-<?php if ($datoFiltro): ?>
-doc.text('Numero Offerta: <?php echo htmlspecialchars($datoFiltro); ?>', 14, yPos);
-yPos += 6;
-<?php endif; ?>
+            <?php if ($datoFiltro): ?>
+                doc.text('Numero Offerta: <?php echo htmlspecialchars($datoFiltro); ?>', 14, yPos);
+                yPos += 6;
+            <?php endif; ?>
 
-<?php if ($descrizioneFiltro): ?>
-doc.text('Descrizione: <?php echo htmlspecialchars($descrizioneFiltro); ?>', 14, yPos);
-yPos += 6;
-<?php endif; ?>
-            
+            <?php if ($descrizioneFiltro): ?>
+                doc.text('Descrizione: <?php echo htmlspecialchars($descrizioneFiltro); ?>', 14, yPos);
+                yPos += 6;
+            <?php endif; ?>
+
             doc.text('Data generazione: ' + new Date().toLocaleString('it-IT'), 14, yPos);
             doc.text('Totale movimenti: ' + movimentiData.length, 200, yPos);
             yPos += 10;
-            
+
             let totaleEntrateExp = 0;
             let totaleUsciteExp = 0;
-            
+
             const tableData = movimentiData.map(mov => {
                 const isUscita = mov.movimento.toString().startsWith('-');
                 const movimentoNum = Math.abs(parseInt(mov.movimento));
                 const movimento = isUscita ? '-' + movimentoNum : '+' + movimentoNum;
                 const tipo = isUscita ? 'USCITA' : 'ENTRATA';
-                
+
                 if (isUscita) {
                     totaleUsciteExp += movimentoNum;
                 } else {
                     totaleEntrateExp += movimentoNum;
                 }
-                
+
                 return [
                     mov.dataMovimento,
                     mov.idProdotto,
@@ -1236,13 +1245,15 @@ yPos += 6;
                     mov.bollaNumero || '-',
                     mov.datoNumero || '-',
                     (mov.descrizione || '-').substring(0, 25),
-                     mov.idPadre || '-'
+                    mov.idPadre || '-'
                 ];
             });
-            
+
             doc.autoTable({
                 startY: yPos,
-               head: [['Data/Ora', 'Prodotto', 'Tipo', 'Qta', 'Utente', 'N. Lista', 'N. Offerta', 'Descrizione', 'Padre']],
+                head: [
+                    ['Data/Ora', 'Prodotto', 'Tipo', 'Qta', 'Utente', 'N. Lista', 'N. Offerta', 'Descrizione', 'Padre']
+                ],
                 body: tableData,
                 styles: {
                     fontSize: 7,
@@ -1258,44 +1269,81 @@ yPos += 6;
                     fillColor: [245, 245, 245]
                 },
                 columnStyles: {
-    0: { cellWidth: 28, halign: 'center', fontSize: 7 },      // Data/Ora
-    1: { cellWidth: 30, fontSize: 7 },                         // Prodotto
-    2: { cellWidth: 20, halign: 'center', fontSize: 7 },      // Tipo
-    3: { cellWidth: 15, halign: 'center', fontSize: 8 },      // Qta
-    4: { cellWidth: 22, fontSize: 7 },                         // Utente
-    5: { cellWidth: 22, halign: 'center', fontSize: 7 },      // N. Lista
-    6: { cellWidth: 22, halign: 'center', fontSize: 7 },      // N. Offerta
-    7: { cellWidth: 50, fontSize: 6 },                         // Descrizione
-    8: { cellWidth: 18, halign: 'center', fontSize: 7 }       // ID Padre
-},
+                    0: {
+                        cellWidth: 28,
+                        halign: 'center',
+                        fontSize: 7
+                    }, // Data/Ora
+                    1: {
+                        cellWidth: 30,
+                        fontSize: 7
+                    }, // Prodotto
+                    2: {
+                        cellWidth: 20,
+                        halign: 'center',
+                        fontSize: 7
+                    }, // Tipo
+                    3: {
+                        cellWidth: 15,
+                        halign: 'center',
+                        fontSize: 8
+                    }, // Qta
+                    4: {
+                        cellWidth: 22,
+                        fontSize: 7
+                    }, // Utente
+                    5: {
+                        cellWidth: 22,
+                        halign: 'center',
+                        fontSize: 7
+                    }, // N. Lista
+                    6: {
+                        cellWidth: 22,
+                        halign: 'center',
+                        fontSize: 7
+                    }, // N. Offerta
+                    7: {
+                        cellWidth: 50,
+                        fontSize: 6
+                    }, // Descrizione
+                    8: {
+                        cellWidth: 18,
+                        halign: 'center',
+                        fontSize: 7
+                    } // ID Padre
+                },
                 didParseCell: function(data) {
-    if (data.section === 'body') {
-        if (data.column.index === 2) { // Colonna "Tipo"
-            const isEntrata = data.cell.raw === 'ENTRATA';
-            const fillColor = isEntrata ? [232, 245, 233] : [255, 235, 238];
-            const badgeColor = isEntrata ? [76, 175, 80] : [255, 107, 107];
-            const textColor = isEntrata ? [76, 175, 80] : [255, 107, 107];
-            
-            // Applica colore a tutte le celle della riga
-            for (let i = 0; i < 9; i++) {
-                if (i === 2) { // Badge Tipo
-                    data.row.cells[i].styles.fillColor = badgeColor;
-                    data.row.cells[i].styles.textColor = [255, 255, 255];
-                    data.row.cells[i].styles.fontStyle = 'bold';
-                } else if (i === 3) { // Quantità
-                    data.row.cells[i].styles.fillColor = fillColor;
-                    data.row.cells[i].styles.textColor = textColor;
-                    data.row.cells[i].styles.fontStyle = 'bold';
-                } else {
-                    data.row.cells[i].styles.fillColor = fillColor;
+                    if (data.section === 'body') {
+                        if (data.column.index === 2) { // Colonna "Tipo"
+                            const isEntrata = data.cell.raw === 'ENTRATA';
+                            const fillColor = isEntrata ? [232, 245, 233] : [255, 235, 238];
+                            const badgeColor = isEntrata ? [76, 175, 80] : [255, 107, 107];
+                            const textColor = isEntrata ? [76, 175, 80] : [255, 107, 107];
+
+                            // Applica colore a tutte le celle della riga
+                            for (let i = 0; i < 9; i++) {
+                                if (i === 2) { // Badge Tipo
+                                    data.row.cells[i].styles.fillColor = badgeColor;
+                                    data.row.cells[i].styles.textColor = [255, 255, 255];
+                                    data.row.cells[i].styles.fontStyle = 'bold';
+                                } else if (i === 3) { // Quantità
+                                    data.row.cells[i].styles.fillColor = fillColor;
+                                    data.row.cells[i].styles.textColor = textColor;
+                                    data.row.cells[i].styles.fontStyle = 'bold';
+                                } else {
+                                    data.row.cells[i].styles.fillColor = fillColor;
+                                }
+                            }
+                        }
+                    }
+                },
+                margin: {
+                    top: yPos,
+                    left: 14,
+                    right: 14
                 }
-            }
-        }
-    }
-},
-                margin: { top: yPos, left: 14, right: 14 }
             });
-            
+
             const finalY = doc.lastAutoTable.finalY + 10;
             doc.setFontSize(11);
             doc.setFont(undefined, 'bold');
@@ -1305,130 +1353,132 @@ yPos += 6;
             doc.text('Totale Uscite: -' + totaleUsciteExp, 80, finalY);
             doc.setTextColor(0, 0, 0);
             doc.text('Totale Movimenti: ' + movimentiData.length, 145, finalY);
-            
+
             const dataOggi = new Date().toISOString().split('T')[0];
             doc.save('storico_movimenti_' + dataOggi + '.pdf');
         }
 
-// Funzione esporta CSV
-function esportaCSV() {
-    if (movimentiData.length === 0) {
-        alert('Nessun movimento da esportare!');
-        return;
-    }
-    
-    // Intestazioni CSV
-    const headers = [
-        'Data/Ora',
-        'Prodotto',
-        'Tipo Movimento',
-        'Quantità',
-        'Utente',
-        'Numero Lista Taglio',
-        'Numero Offerta',
-        'Descrizione',
-        'ID Padre'
-    ];
-    
-    // Prepara i dati
-    let csvContent = '\uFEFF'; // BOM UTF-8 per Excel
-    
-    // Aggiungi informazioni sui filtri attivi
-    csvContent += '"Storico Movimenti Magazzino"\n';
-    csvContent += '"Data generazione: ' + new Date().toLocaleString('it-IT') + '"\n';
-    <?php if ($tipoFiltro !== 'tutti'): ?>
-    csvContent += '"Tipo: <?php echo ucfirst($tipoFiltro); ?>"\n';
-    <?php endif; ?>
-    <?php if ($prodottoFiltro): ?>
-    csvContent += '"Prodotto: <?php echo htmlspecialchars($prodottoFiltro); ?>"\n';
-    <?php endif; ?>
-    <?php if ($dataInizio): ?>
-    csvContent += '"Data Inizio: <?php echo htmlspecialchars($dataInizio); ?>"\n';
-    <?php endif; ?>
-    <?php if ($dataFine): ?>
-    csvContent += '"Data Fine: <?php echo htmlspecialchars($dataFine); ?>"\n';
-    <?php endif; ?>
-    <?php if ($padreFiltro): ?>
-    csvContent += '"ID Padre: <?php echo htmlspecialchars($padreFiltro); ?>"\n';
-    <?php endif; ?>
-    <?php if ($bollaFiltro): ?>
-    csvContent += '"Numero Lista Taglio: <?php echo htmlspecialchars($bollaFiltro); ?>"\n';
-    <?php endif; ?>
-    <?php if ($datoFiltro): ?>
-    csvContent += '"Numero Offerta: <?php echo htmlspecialchars($datoFiltro); ?>"\n';
-    <?php endif; ?>
-    <?php if ($descrizioneFiltro): ?>
-    csvContent += '"Descrizione: <?php echo htmlspecialchars($descrizioneFiltro); ?>"\n';
-    <?php endif; ?>
-    csvContent += '"Totale movimenti: ' + movimentiData.length + '"\n\n';
-    
-    // Aggiungi intestazioni
-    csvContent += headers.map(h => '"' + h + '"').join(';') + '\n';
-    
-    // Variabili per statistiche
-    let totaleEntrateCSV = 0;
-    let totaleUsciteCSV = 0;
-    
-    // Aggiungi dati
-    movimentiData.forEach(mov => {
-        const isUscita = mov.movimento.toString().startsWith('-');
-        const movimentoNum = Math.abs(parseInt(mov.movimento));
-        const movimento = isUscita ? '-' + movimentoNum : '+' + movimentoNum;
-        const tipo = isUscita ? 'USCITA' : 'ENTRATA';
-        
-        // Calcola statistiche
-        if (isUscita) {
-            totaleUsciteCSV += movimentoNum;
-        } else {
-            totaleEntrateCSV += movimentoNum;
+        // Funzione esporta CSV
+        function esportaCSV() {
+            if (movimentiData.length === 0) {
+                alert('Nessun movimento da esportare!');
+                return;
+            }
+
+            // Intestazioni CSV
+            const headers = [
+                'Data/Ora',
+                'Prodotto',
+                'Tipo Movimento',
+                'Quantità',
+                'Utente',
+                'Numero Lista Taglio',
+                'Numero Offerta',
+                'Descrizione',
+                'ID Padre'
+            ];
+
+            // Prepara i dati
+            let csvContent = '\uFEFF'; // BOM UTF-8 per Excel
+
+            // Aggiungi informazioni sui filtri attivi
+            csvContent += '"Storico Movimenti Magazzino"\n';
+            csvContent += '"Data generazione: ' + new Date().toLocaleString('it-IT') + '"\n';
+            <?php if ($tipoFiltro !== 'tutti'): ?>
+                csvContent += '"Tipo: <?php echo ucfirst($tipoFiltro); ?>"\n';
+            <?php endif; ?>
+            <?php if ($prodottoFiltro): ?>
+                csvContent += '"Prodotto: <?php echo htmlspecialchars($prodottoFiltro); ?>"\n';
+            <?php endif; ?>
+            <?php if ($dataInizio): ?>
+                csvContent += '"Data Inizio: <?php echo htmlspecialchars($dataInizio); ?>"\n';
+            <?php endif; ?>
+            <?php if ($dataFine): ?>
+                csvContent += '"Data Fine: <?php echo htmlspecialchars($dataFine); ?>"\n';
+            <?php endif; ?>
+            <?php if ($padreFiltro): ?>
+                csvContent += '"ID Padre: <?php echo htmlspecialchars($padreFiltro); ?>"\n';
+            <?php endif; ?>
+            <?php if ($bollaFiltro): ?>
+                csvContent += '"Numero Lista Taglio: <?php echo htmlspecialchars($bollaFiltro); ?>"\n';
+            <?php endif; ?>
+            <?php if ($datoFiltro): ?>
+                csvContent += '"Numero Offerta: <?php echo htmlspecialchars($datoFiltro); ?>"\n';
+            <?php endif; ?>
+            <?php if ($descrizioneFiltro): ?>
+                csvContent += '"Descrizione: <?php echo htmlspecialchars($descrizioneFiltro); ?>"\n';
+            <?php endif; ?>
+            csvContent += '"Totale movimenti: ' + movimentiData.length + '"\n\n';
+
+            // Aggiungi intestazioni
+            csvContent += headers.map(h => '"' + h + '"').join(';') + '\n';
+
+            // Variabili per statistiche
+            let totaleEntrateCSV = 0;
+            let totaleUsciteCSV = 0;
+
+            // Aggiungi dati
+            movimentiData.forEach(mov => {
+                const isUscita = mov.movimento.toString().startsWith('-');
+                const movimentoNum = Math.abs(parseInt(mov.movimento));
+                const movimento = isUscita ? '-' + movimentoNum : '+' + movimentoNum;
+                const tipo = isUscita ? 'USCITA' : 'ENTRATA';
+
+                // Calcola statistiche
+                if (isUscita) {
+                    totaleUsciteCSV += movimentoNum;
+                } else {
+                    totaleEntrateCSV += movimentoNum;
+                }
+
+                // Pulisci descrizione da virgole e virgolette
+                const descrizione = (mov.descrizione || '-')
+                    .replace(/"/g, '""')
+                    .replace(/\n/g, ' ')
+                    .replace(/\r/g, '');
+
+                const row = [
+                    mov.dataMovimento,
+                    mov.idProdotto,
+                    tipo,
+                    movimento,
+                    mov.idUtente,
+                    mov.bollaNumero || '-',
+                    mov.datoNumero || '-',
+                    descrizione,
+                    mov.idPadre || '-'
+                ];
+
+                csvContent += row.map(cell => '"' + cell + '"').join(';') + '\n';
+            });
+
+            // Aggiungi statistiche finali
+            csvContent += '\n';
+            csvContent += '"STATISTICHE"\n';
+            csvContent += '"Totale Entrate";"+' + totaleEntrateCSV + '"\n';
+            csvContent += '"Totale Uscite";"-' + totaleUsciteCSV + '"\n';
+            csvContent += '"Totale Movimenti";"' + movimentiData.length + '"\n';
+
+            // Crea il file e scarica
+            const blob = new Blob([csvContent], {
+                type: 'text/csv;charset=utf-8;'
+            });
+            const link = document.createElement('a');
+
+            if (link.download !== undefined) {
+                const url = URL.createObjectURL(blob);
+                const dataOggi = new Date().toISOString().split('T')[0];
+                link.setAttribute('href', url);
+                link.setAttribute('download', 'storico_movimenti_' + dataOggi + '.csv');
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            } else {
+                alert('Il tuo browser non supporta il download automatico. Copia i dati dalla console.');
+                console.log(csvContent);
+            }
         }
-        
-        // Pulisci descrizione da virgole e virgolette
-        const descrizione = (mov.descrizione || '-')
-            .replace(/"/g, '""')
-            .replace(/\n/g, ' ')
-            .replace(/\r/g, '');
-        
-        const row = [
-            mov.dataMovimento,
-            mov.idProdotto,
-            tipo,
-            movimento,
-            mov.idUtente,
-            mov.bollaNumero || '-',
-            mov.datoNumero || '-',
-            descrizione,
-            mov.idPadre || '-'
-        ];
-        
-        csvContent += row.map(cell => '"' + cell + '"').join(';') + '\n';
-    });
-    
-    // Aggiungi statistiche finali
-    csvContent += '\n';
-    csvContent += '"STATISTICHE"\n';
-    csvContent += '"Totale Entrate";"+' + totaleEntrateCSV + '"\n';
-    csvContent += '"Totale Uscite";"-' + totaleUsciteCSV + '"\n';
-    csvContent += '"Totale Movimenti";"' + movimentiData.length + '"\n';
-    
-    // Crea il file e scarica
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    
-    if (link.download !== undefined) {
-        const url = URL.createObjectURL(blob);
-        const dataOggi = new Date().toISOString().split('T')[0];
-        link.setAttribute('href', url);
-        link.setAttribute('download', 'storico_movimenti_' + dataOggi + '.csv');
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    } else {
-        alert('Il tuo browser non supporta il download automatico. Copia i dati dalla console.');
-        console.log(csvContent);
-    }
-}
         window.addEventListener('load', function() {
             document.querySelectorAll('.stat-card, .filters-card, .table-card').forEach((el, index) => {
                 el.style.animationDelay = (index * 0.1) + 's';
@@ -1436,4 +1486,5 @@ function esportaCSV() {
         });
     </script>
 </body>
+
 </html>

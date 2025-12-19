@@ -35,21 +35,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['aggiungi_prodotto']))
     $padre_nome = trim($_POST['padre_nome']);
 
 
-            $pdo->beginTransaction();
-            $stmt = $pdo->prepare("INSERT INTO padre (nome) VALUES (?)");
-            $stmt->execute([$padre_nome]);
-            $pdo->commit();
+    $pdo->beginTransaction();
+    $stmt = $pdo->prepare("INSERT INTO padre (nome) VALUES (?)");
+    $stmt->execute([$padre_nome]);
+    $pdo->commit();
 
-    
+
     if (!empty($padre_nome)) {
         try {
             $pdo->beginTransaction();
-            
+
             $stmt = $pdo->prepare("INSERT INTO prodotti (nome, descrizione, quantita, allarme, fornitore, padre, minimo) VALUES (?, ?, ?, ?, ?, ?, ?)");
             //$stmt->execute([$padre_nome, 'Gruppo padre', 0, 'nessuno', '', $padre_nome, 0]);
-            
+
             $prodotti_da_inserire = [];
-            
+
             foreach ($_POST as $key => $value) {
                 if (strpos($key, 'nome_') === 0) {
                     $index = str_replace('nome_', '', $key);
@@ -58,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['aggiungi_prodotto']))
                     $quantita = intval($_POST['quantita_' . $index] ?? 0);
                     $fornitore = trim($_POST['fornitore_' . $index] ?? '');
                     $minimo = intval($_POST['minimo_' . $index] ?? 0);
-                    
+
                     if (!empty($nome)) {
                         $prodotti_da_inserire[] = [
                             'nome' => $nome,
@@ -71,10 +71,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['aggiungi_prodotto']))
                     }
                 }
             }
-            
+
             if (count($prodotti_da_inserire) > 0) {
                 $stmt = $pdo->prepare("INSERT INTO prodotti (nome, descrizione, quantita, allarme, fornitore, padre, minimo) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                
+
                 foreach ($prodotti_da_inserire as $prodotto) {
                     $stmt->execute([
                         $prodotto['nome'],
@@ -86,7 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['aggiungi_prodotto']))
                         $prodotto['minimo']
                     ]);
                 }
-                
+
                 $pdo->commit();
                 $successo = json_encode(['tipo' => 'successo', 'messaggio' => 'Gruppo padre e ' . count($prodotti_da_inserire) . ' componenti aggiunti!']);
             } else {
@@ -103,7 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['aggiungi_prodotto']))
 // GESTIONE ELIMINAZIONE SINGOLO PRODOTTO
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['elimina_prodotto'])) {
     $id = intval($_POST['id']);
-    
+
     try {
         $stmt = $pdo->prepare("DELETE FROM prodotti WHERE id = ?");
         $stmt->execute([$id]);
@@ -116,7 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['elimina_prodotto'])) 
 // GESTIONE ELIMINAZIONE GRUPPO PADRE
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['elimina_padre'])) {
     $padre_nome = trim($_POST['padre_nome']);
-    
+
     try {
         $stmt = $pdo->prepare("DELETE FROM prodotti WHERE padre = ?");
         $stmt->execute([$padre_nome]);
@@ -132,10 +132,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['elimina_padre'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['modifica_gruppo_padre'])) {
     $vecchio_padre = trim($_POST['vecchio_padre']);
     $nuovo_padre = trim($_POST['nuovo_padre']);
-    
+
     try {
         $pdo->beginTransaction();
-        
+
         // Elimina componenti selezionati
         if (isset($_POST['elimina_componenti']) && is_array($_POST['elimina_componenti'])) {
             foreach ($_POST['elimina_componenti'] as $id) {
@@ -143,7 +143,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['modifica_gruppo_padre
                 $stmt->execute([intval($id)]);
             }
         }
-        
+
         // Modifica componenti esistenti
         if (isset($_POST['componenti_ids']) && is_array($_POST['componenti_ids'])) {
             foreach ($_POST['componenti_ids'] as $id) {
@@ -152,17 +152,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['modifica_gruppo_padre
                 $quantita = intval($_POST['comp_quantita_' . $id] ?? 0);
                 $fornitore = trim($_POST['comp_fornitore_' . $id] ?? '');
                 $minimo = intval($_POST['comp_minimo_' . $id] ?? 0);
-                
+
                 if (!empty($nome)) {
                     $stmt = $pdo->prepare("UPDATE prodotti SET nome = ?, descrizione = ?, quantita = ?, fornitore = ?, minimo = ?, padre = ? WHERE id = ?");
                     $stmt->execute([$nome, $descrizione, $quantita, $fornitore, $minimo, $nuovo_padre, intval($id)]);
 
                     $stmt = $pdo->prepare("UPDATE padre SET nome = ? WHERE nome = ?");
-                    $stmt->execute([ $nuovo_padre, $vecchio_padre]);
+                    $stmt->execute([$nuovo_padre, $vecchio_padre]);
                 }
             }
         }
-        
+
         // Aggiungi nuovi componenti
         if (isset($_POST['nuovi_componenti']) && is_array($_POST['nuovi_componenti'])) {
             foreach ($_POST['nuovi_componenti'] as $index) {
@@ -171,18 +171,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['modifica_gruppo_padre
                 $quantita = intval($_POST['nuovo_quantita_' . $index] ?? 0);
                 $fornitore = trim($_POST['nuovo_fornitore_' . $index] ?? '');
                 $minimo = intval($_POST['nuovo_minimo_' . $index] ?? 0);
-                
+
                 if (!empty($nome)) {
                     $stmt = $pdo->prepare("INSERT INTO prodotti (nome, descrizione, quantita, allarme, fornitore, padre, minimo) VALUES (?, ?, ?, ?, ?, ?, ?)");
                     $stmt->execute([$nome, $descrizione, $quantita, 'nessuno', $fornitore, $nuovo_padre, $minimo]);
                 }
             }
         }
-        
+
         // Aggiorna nome padre
         $stmt = $pdo->prepare("UPDATE prodotti SET nome = ?, padre = ? WHERE padre = ? AND nome = ?");
         $stmt->execute([$nuovo_padre, $nuovo_padre, $vecchio_padre, $vecchio_padre]);
-        
+
         $pdo->commit();
         $successo = json_encode(['tipo' => 'successo', 'messaggio' => 'Gruppo modificato con successo!']);
     } catch (PDOException $e) {
@@ -199,7 +199,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['modifica_prodotto']))
     $quantita = intval($_POST['quantita']);
     $fornitore = trim($_POST['fornitore']);
     $minimo = intval($_POST['minimo']);
-    
+
     if (!empty($nome)) {
         try {
             $stmt = $pdo->prepare("UPDATE prodotti SET nome = ?, descrizione = ?, quantita = ?, fornitore = ?, minimo = ? WHERE id = ?");
@@ -231,13 +231,20 @@ foreach ($prodotti as $prodotto) {
 
 // COMPONENTI PREDEFINITI
 $componenti_predefiniti = [
-    'Telaio', 'Telaio Restauro', 'Anta', 'Anta Maniglia Passante',
-    'Scambio Battuta', 'Traverso Telaio da mm. 104', 'Traverso Anta da mm. 70',
-    'FV Vetro 45 MM', 'FV Fix'
+    'Telaio',
+    'Telaio Restauro',
+    'Anta',
+    'Anta Maniglia Passante',
+    'Scambio Battuta',
+    'Traverso Telaio da mm. 104',
+    'Traverso Anta da mm. 70',
+    'FV Vetro 45 MM',
+    'FV Fix'
 ];
 ?>
 <!DOCTYPE html>
 <html lang="it">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -245,19 +252,20 @@ $componenti_predefiniti = [
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-        
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: 'Inter', sans-serif;
-            background: #f5f6fa; /* bianco/grigio chiaro */
+            background: #f5f6fa;
+            /* bianco/grigio chiaro */
             min-height: 100vh;
         }
-        
+
         /* NAVBAR */
         .navbar {
             position: fixed;
@@ -276,131 +284,133 @@ $componenti_predefiniti = [
         }
 
         /* Sidebar */
-.sidebar {
-    position: fixed;
-    left: -280px;
-    top: 0;
-    width: 280px;
-    height: 100vh;
-    background: #1a1a1a;
-    transition: left 0.3s ease;
-    z-index: 1000;
-    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3);
-}
+        .sidebar {
+            position: fixed;
+            left: -280px;
+            top: 0;
+            width: 280px;
+            height: 100vh;
+            background: #1a1a1a;
+            transition: left 0.3s ease;
+            z-index: 1000;
+            box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3);
+        }
 
-.sidebar.active {
-    left: 0;
-}
+        .sidebar.active {
+            left: 0;
+        }
 
-.sidebar-header {
-    padding: 30px 20px;
-    border-bottom: 1px solid #333;
-    text-align: center;
-}
+        .sidebar-header {
+            padding: 30px 20px;
+            border-bottom: 1px solid #333;
+            text-align: center;
+        }
 
-.sidebar-logo {
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #ffffff 0%, #e0e0e0 100%);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0 auto 15px;
-    font-size: 36px;
-    font-weight: bold;
-    color: #1a1a1a;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-}
+        .sidebar-logo {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #ffffff 0%, #e0e0e0 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 15px;
+            font-size: 36px;
+            font-weight: bold;
+            color: #1a1a1a;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
 
-.sidebar-title {
-    color: white;
-    font-size: 18px;
-    font-weight: 600;
-}
+        .sidebar-title {
+            color: white;
+            font-size: 18px;
+            font-weight: 600;
+        }
 
-.sidebar-menu {
-    padding: 20px 0;
-}
+        .sidebar-menu {
+            padding: 20px 0;
+        }
 
-.menu-item {
-    padding: 15px 25px;
-    color: white;
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    cursor: pointer;
-    transition: all 0.3s;
-    border-left: 3px solid transparent;
-    text-decoration: none;
-}
+        .menu-item {
+            padding: 15px 25px;
+            color: white;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border-left: 3px solid transparent;
+            text-decoration: none;
+        }
 
-.menu-item:hover {
-    background: #2d2d2d;
-    border-left-color: white;
-    transform: translateX(5px);
-}
+        .menu-item:hover {
+            background: #2d2d2d;
+            border-left-color: white;
+            transform: translateX(5px);
+        }
 
-.menu-item.active {
-    background: #2d2d2d;
-    border-left-color: white;
-}
+        .menu-item.active {
+            background: #2d2d2d;
+            border-left-color: white;
+        }
 
-.menu-icon {
-    font-size: 24px;
-    width: 30px;
-    text-align: center;
-}
+        .menu-icon {
+            font-size: 24px;
+            width: 30px;
+            text-align: center;
+        }
 
-.menu-text {
-    font-size: 15px;
-}
+        .menu-text {
+            font-size: 15px;
+        }
 
-/* Overlay */
-.overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.5);
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity 0.3s ease, visibility 0.3s ease;
-    z-index: 999;
-}
+        /* Overlay */
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+            z-index: 999;
+        }
 
-.overlay.active {
-    opacity: 1;
-    visibility: visible;
-}
+        .overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
 
-.menu-toggle {
-    background: none;
-    border: none;
-    color: white;
-    font-size: 24px;
-    cursor: pointer;
-    padding: 5px 10px;
-    transition: all 0.3s;
-    border-radius: 5px;
-}
+        .menu-toggle {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 5px 10px;
+            transition: all 0.3s;
+            border-radius: 5px;
+        }
 
-.menu-toggle:hover {
-    background: #2d2d2d;
-    transform: scale(1.05);
-}
-        
+        .menu-toggle:hover {
+            background: #2d2d2d;
+            transform: scale(1.05);
+        }
+
         .navbar-left {
             display: flex;
             align-items: center;
             gap: 20px;
         }
+
         .user-info {
-    display: flex;
-    align-items: center;
-    gap: 20px;
-}
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
         .navbar-logo {
             width: 45px;
             height: 45px;
@@ -414,12 +424,12 @@ $componenti_predefiniti = [
             color: #1a1a1a;
             box-shadow: 0 4px 12px rgba(102, 126, 234, 0.5);
         }
-        
+
         .navbar h1 {
             font-size: 24px;
             font-weight: 600;
         }
-        
+
         .btn-logout {
             background: white;
             color: #1a1a1a;
@@ -431,21 +441,22 @@ $componenti_predefiniti = [
             transition: all 0.3s;
             text-decoration: none;
         }
-        
+
         .btn-logout:hover {
             transform: translateY(-2px);
             box-shadow: 0 6px 20px rgba(255, 255, 255, 0.3);
         }
-        
+
         /* CONTAINER */
         .container {
             max-width: 1600px;
             margin: 100px auto 40px;
             padding: 0 20px;
         }
-        
+
         /* SEZIONI */
-        .insert-section, .prodotti-section {
+        .insert-section,
+        .prodotti-section {
             background: white;
             padding: 35px;
             border-radius: 16px;
@@ -453,18 +464,19 @@ $componenti_predefiniti = [
             margin-bottom: 30px;
             animation: slideDown 0.5s ease;
         }
-        
+
         @keyframes slideDown {
             from {
                 opacity: 0;
                 transform: translateY(-30px);
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0);
             }
         }
-        
+
         .section-header {
             display: flex;
             align-items: center;
@@ -474,7 +486,7 @@ $componenti_predefiniti = [
             border-bottom: 2px solid #f0f0f0;
             cursor: pointer;
         }
-        
+
         .section-header h3 {
             color: #1a1a1a;
             font-size: 24px;
@@ -483,31 +495,31 @@ $componenti_predefiniti = [
             align-items: center;
             gap: 15px;
         }
-        
+
         .toggle-icon {
             font-size: 28px;
             transition: transform 0.3s;
             color: #667eea;
         }
-        
+
         .toggle-icon.collapsed {
             transform: rotate(-90deg);
         }
-        
+
         .form-content {
             display: none;
         }
-        
+
         .form-content.expanded {
             display: block;
             animation: fadeIn 0.3s ease;
         }
-        
+
         /* FORM */
         .form-group {
             margin-bottom: 20px;
         }
-        
+
         label {
             display: block;
             margin-bottom: 10px;
@@ -515,7 +527,7 @@ $componenti_predefiniti = [
             font-weight: 600;
             font-size: 14px;
         }
-        
+
         input[type="text"],
         input[type="number"],
         textarea {
@@ -527,19 +539,19 @@ $componenti_predefiniti = [
             transition: all 0.3s;
             font-family: inherit;
         }
-        
+
         input:focus,
         textarea:focus {
             outline: none;
             border-color: #667eea;
             box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
         }
-        
+
         textarea {
             resize: vertical;
             min-height: 80px;
         }
-        
+
         /* PADRE SECTION */
         .padre-section {
             background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
@@ -548,7 +560,7 @@ $componenti_predefiniti = [
             margin-bottom: 30px;
             border: 2px solid #667eea30;
         }
-        
+
         /* FIGLI CONTAINER */
         .figli-container {
             border: 2px dashed #667eea40;
@@ -557,14 +569,14 @@ $componenti_predefiniti = [
             margin-bottom: 25px;
             background: #f8f9ff;
         }
-        
+
         .figli-header {
             font-size: 20px;
             font-weight: 700;
             color: #1a1a1a;
             margin-bottom: 25px;
         }
-        
+
         .figlio-item {
             background: white;
             border: 2px solid #e0e0e0;
@@ -573,12 +585,12 @@ $componenti_predefiniti = [
             margin-bottom: 20px;
             transition: all 0.3s;
         }
-        
+
         .figlio-item:hover {
             box-shadow: 0 8px 25px rgba(102, 126, 234, 0.2);
             border-color: #667eea;
         }
-        
+
         .figlio-header-row {
             display: flex;
             justify-content: space-between;
@@ -587,13 +599,13 @@ $componenti_predefiniti = [
             padding-bottom: 15px;
             border-bottom: 2px solid #f0f0f0;
         }
-        
+
         .figlio-numero {
             font-weight: 700;
             color: #667eea;
             font-size: 18px;
         }
-        
+
         .btn-remove-figlio {
             background: linear-gradient(135deg, #ff4444 0%, #cc0000 100%);
             color: white;
@@ -605,17 +617,17 @@ $componenti_predefiniti = [
             font-size: 20px;
             transition: all 0.3s;
         }
-        
+
         .btn-remove-figlio:hover {
             transform: rotate(90deg) scale(1.1);
         }
-        
+
         .figlio-grid {
             display: grid;
             grid-template-columns: 2fr 1fr 1fr 1fr;
             gap: 15px;
         }
-        
+
         /* BUTTONS */
         .btn-add-figlio {
             background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
@@ -632,12 +644,12 @@ $componenti_predefiniti = [
             gap: 10px;
             box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
         }
-        
+
         .btn-add-figlio:hover {
             transform: translateY(-3px);
             box-shadow: 0 8px 25px rgba(76, 175, 80, 0.4);
         }
-        
+
         button[type="submit"] {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
@@ -650,12 +662,12 @@ $componenti_predefiniti = [
             transition: all 0.3s;
             box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
         }
-        
+
         button[type="submit"]:hover {
             transform: translateY(-3px);
             box-shadow: 0 10px 30px rgba(102, 126, 234, 0.5);
         }
-        
+
         /* PRODOTTI GRUPPO */
         .padre-group {
             margin-bottom: 30px;
@@ -665,7 +677,7 @@ $componenti_predefiniti = [
             border-left: 5px solid #667eea;
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
         }
-        
+
         .padre-header {
             display: flex;
             justify-content: space-between;
@@ -677,11 +689,11 @@ $componenti_predefiniti = [
             margin-bottom: 20px;
             transition: all 0.3s;
         }
-        
+
         .padre-header:hover {
             box-shadow: 0 6px 20px rgba(102, 126, 234, 0.15);
         }
-        
+
         .padre-title {
             font-size: 26px;
             font-weight: 700;
@@ -690,7 +702,7 @@ $componenti_predefiniti = [
             align-items: center;
             gap: 12px;
         }
-        
+
         .padre-badge {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
@@ -699,12 +711,12 @@ $componenti_predefiniti = [
             font-size: 14px;
             font-weight: 600;
         }
-        
+
         .padre-actions {
             display: flex;
             gap: 10px;
         }
-        
+
         .btn-edit-padre,
         .btn-delete-padre {
             border: none;
@@ -715,40 +727,40 @@ $componenti_predefiniti = [
             font-size: 20px;
             transition: all 0.3s;
         }
-        
+
         .btn-edit-padre {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
         }
-        
+
         .btn-edit-padre:hover {
             transform: scale(1.1);
         }
-        
+
         .btn-delete-padre {
             background: linear-gradient(135deg, #ff4444 0%, #cc0000 100%);
             color: white;
         }
-        
+
         .btn-delete-padre:hover {
             transform: scale(1.1);
         }
-        
+
         .figli-list {
             display: none;
             padding-top: 15px;
         }
-        
+
         .figli-list.expanded {
             display: block;
         }
-        
+
         .prodotti-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
             gap: 20px;
         }
-        
+
         .prodotto-card {
             background: white;
             border-radius: 12px;
@@ -756,31 +768,31 @@ $componenti_predefiniti = [
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
             transition: all 0.3s;
         }
-        
+
         .prodotto-card:hover {
             transform: translateY(-5px);
             box-shadow: 0 8px 25px rgba(102, 126, 234, 0.2);
         }
-        
+
         .prodotto-nome {
             font-size: 18px;
             font-weight: 600;
             color: #1a1a1a;
             margin-bottom: 15px;
         }
-        
+
         .info-row {
             display: flex;
             margin-bottom: 8px;
             font-size: 13px;
         }
-        
+
         .info-label {
             font-weight: 600;
             color: #666;
             min-width: 90px;
         }
-        
+
         /* MODAL */
         .modal {
             position: fixed;
@@ -795,11 +807,11 @@ $componenti_predefiniti = [
             z-index: 10000;
             backdrop-filter: blur(5px);
         }
-        
+
         .modal.active {
             display: flex;
         }
-        
+
         .modal-content {
             background: white;
             border-radius: 16px;
@@ -809,7 +821,7 @@ $componenti_predefiniti = [
             overflow-y: auto;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
         }
-        
+
         .modal-header {
             padding: 25px;
             border-bottom: 2px solid #f0f0f0;
@@ -819,13 +831,13 @@ $componenti_predefiniti = [
             background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
             border-radius: 16px 16px 0 0;
         }
-        
+
         .modal-header h3 {
             color: #1a1a1a;
             font-size: 22px;
             font-weight: 700;
         }
-        
+
         .modal-close {
             background: none;
             border: none;
@@ -834,16 +846,16 @@ $componenti_predefiniti = [
             cursor: pointer;
             transition: all 0.3s;
         }
-        
+
         .modal-close:hover {
             color: #333;
             transform: rotate(90deg);
         }
-        
+
         .modal-body {
             padding: 25px;
         }
-        
+
         .modal-footer {
             padding: 20px 25px;
             border-top: 2px solid #f0f0f0;
@@ -851,7 +863,7 @@ $componenti_predefiniti = [
             gap: 10px;
             justify-content: flex-end;
         }
-        
+
         /* ALERT MODERNO */
         .modern-alert {
             position: fixed;
@@ -870,11 +882,11 @@ $componenti_predefiniti = [
             max-width: 600px;
             transition: top 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
         }
-        
+
         .modern-alert.show {
             top: 100px;
         }
-        
+
         .alert-icon {
             width: 50px;
             height: 50px;
@@ -885,33 +897,33 @@ $componenti_predefiniti = [
             font-size: 28px;
             flex-shrink: 0;
         }
-        
+
         .modern-alert.successo .alert-icon {
             background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
             color: white;
         }
-        
+
         .modern-alert.errore .alert-icon {
             background: linear-gradient(135deg, #ff4444 0%, #cc0000 100%);
             color: white;
         }
-        
+
         .alert-content {
             flex: 1;
         }
-        
+
         .alert-title {
             font-weight: 700;
             font-size: 18px;
             color: #1a1a1a;
             margin-bottom: 5px;
         }
-        
+
         .alert-message {
             font-size: 14px;
             color: #666;
         }
-        
+
         .alert-close {
             background: none;
             border: none;
@@ -920,27 +932,28 @@ $componenti_predefiniti = [
             cursor: pointer;
             transition: all 0.3s;
         }
-        
+
         .alert-close:hover {
             color: #333;
             transform: rotate(90deg);
         }
-        
+
         @media (max-width: 768px) {
             .figlio-grid {
                 grid-template-columns: 1fr;
             }
-            
+
             .prodotti-grid {
                 grid-template-columns: 1fr;
             }
-            
+
             .modern-alert {
                 min-width: 90%;
             }
         }
     </style>
 </head>
+
 <body>
     <!-- ALERT MODERNO -->
     <div class="modern-alert" id="modernAlert">
@@ -951,103 +964,102 @@ $componenti_predefiniti = [
         </div>
         <button class="alert-close" onclick="closeAlert()">×</button>
     </div>
-    
-  <!-- Overlay -->
-<div class="overlay" id="overlay"></div>
 
-<!-- Sidebar -->
-<div class="sidebar" id="sidebar">
-    <div class="sidebar-header">
-        <div class="sidebar-logo">GP</div>
-        <div class="sidebar-title">Gestione Prodotti</div>
+    <!-- Overlay -->
+    <div class="overlay" id="overlay"></div>
+
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-logo">GP</div>
+            <div class="sidebar-title">Gestione Prodotti</div>
+        </div>
+
+        <div class="sidebar-menu">
+            <a href="dashboard.php" class="menu-item">
+                <span class="menu-icon">🏠</span>
+                <span class="menu-text">Dashboard</span>
+            </a>
+            <a href="pagina_controllo.php" class="menu-item">
+                <span class="menu-icon">⚙️</span>
+                <span class="menu-text">Pagina di Controllo</span>
+            </a>
+            <a href="prodotti.php" class="menu-item active">
+                <span class="menu-icon">📦</span>
+                <span class="menu-text">Modifica Prodotti</span>
+            </a>
+            <a href="entrateUscite.php" class="menu-item">
+                <span class="menu-icon">🏷️</span>
+                <span class="menu-text">Registra Entrate/Uscite</span>
+            </a>
+            <a href="storicoEntrateUscite.php" class="menu-item">
+                <span class="menu-icon">📈</span>
+                <span class="menu-text">Storico Entrate/Uscite</span>
+            </a>
+        </div>
     </div>
 
-    <div class="sidebar-menu">
-        <a href="dashboard.php" class="menu-item">
-            <span class="menu-icon">🏠</span>
-            <span class="menu-text">Dashboard</span>
-        </a>
-        <a href="pagina_controllo.php" class="menu-item">
-            <span class="menu-icon">⚙️</span>
-            <span class="menu-text">Pagina di Controllo</span>
-        </a>
-        <a href="prodotti.php" class="menu-item active">
-            <span class="menu-icon">📦</span>
-            <span class="menu-text">Modifica Prodotti</span>
-        </a>
-        <a href="entrateUscite.php" class="menu-item">
-            <span class="menu-icon">🏷️</span>
-            <span class="menu-text">Registra Entrate/Uscite</span>
-        </a>
-        <a href="storicoEntrateUscite.php" class="menu-item">
-            <span class="menu-icon">📈</span>
-            <span class="menu-text">Storico Entrate/Uscite</span>
-        </a>
-    </div>
-</div>
+    <!-- Navbar -->
+    <nav class="navbar">
+        <div class="navbar-left">
+            <button class="menu-toggle" id="menuToggle">☰</button>
+            <div class="navbar-logo">GP</div>
+            <h1>Gestione Prodotti</h1>
+        </div>
+        <div class="user-info">
+            <span>Benvenuto, <strong><?php echo htmlspecialchars($username); ?></strong></span>
+            <a href="./logout.php" class="btn-logout">Logout</a>
+        </div>
+    </nav>
+    <script>
+        // Toggle Sidebar
+        const menuToggle = document.getElementById('menuToggle');
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('overlay');
 
-<!-- Navbar -->
-<nav class="navbar">
-    <div class="navbar-left">
-        <button class="menu-toggle" id="menuToggle">☰</button>
-        <div class="navbar-logo">GP</div>
-        <h1>Gestione Prodotti</h1>
-    </div>
-    <div class="user-info">
-        <span>Benvenuto, <strong><?php echo htmlspecialchars($username); ?></strong></span>
-        <a href="./logout.php" class="btn-logout">Logout</a>
-    </div>
-</nav>
-<script>
- // Toggle Sidebar
-const menuToggle = document.getElementById('menuToggle');
-const sidebar = document.getElementById('sidebar');
-const overlay = document.getElementById('overlay');
+        function toggleSidebar() {
+            const isActive = sidebar.classList.contains('active');
 
-function toggleSidebar() {
-    const isActive = sidebar.classList.contains('active');
-    
-    if (isActive) {
-        sidebar.classList.remove('active');
-        overlay.classList.remove('active');
-        document.body.style.overflow = '';
-    } else {
-        sidebar.classList.add('active');
-        overlay.classList.add('active');
-        document.body.style.overflow = 'hidden';
-    }
-}
-
-menuToggle.addEventListener('click', function(e) {
-    e.stopPropagation();
-    toggleSidebar();
-});
-
-overlay.addEventListener('click', toggleSidebar);
-
-// Menu items
-const menuItems = document.querySelectorAll('.menu-item');
-menuItems.forEach(item => {
-    item.addEventListener('click', function() {
-        if (window.innerWidth <= 768) {
-            toggleSidebar();
+            if (isActive) {
+                sidebar.classList.remove('active');
+                overlay.classList.remove('active');
+                document.body.style.overflow = '';
+            } else {
+                sidebar.classList.add('active');
+                overlay.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }
         }
-    });
-});
 
-</script>
+        menuToggle.addEventListener('click', function(e) {
+            e.stopPropagation();
+            toggleSidebar();
+        });
+
+        overlay.addEventListener('click', toggleSidebar);
+
+        // Menu items
+        const menuItems = document.querySelectorAll('.menu-item');
+        menuItems.forEach(item => {
+            item.addEventListener('click', function() {
+                if (window.innerWidth <= 768) {
+                    toggleSidebar();
+                }
+            });
+        });
+    </script>
 
 
-    
+
     <!-- CONTAINER -->
     <div class="container">
         <!-- INSERIMENTO -->
         <div class="insert-section">
             <div class="section-header" onclick="toggleFormSection()">
-           <h3><i class="fas fa-plus-circle"></i> Inserimento Nuovo Gruppo Prodotti</h3>
+                <h3><i class="fas fa-plus-circle"></i> Inserimento Nuovo Gruppo Prodotti</h3>
                 <span class="toggle-icon collapsed" id="formToggleIcon">▼</span>
             </div>
-            
+
             <div class="form-content" id="formContent">
                 <form method="POST" action="" id="formProdotto">
                     <div class="padre-section">
@@ -1056,63 +1068,63 @@ menuItems.forEach(item => {
                             <input type="text" id="padre_nome" name="padre_nome" required placeholder="Es: Infisso Standard">
                         </div>
                     </div>
-                    
+
                     <div class="figli-container">
                         <div class="figli-header">
                             <i class="fas fa-cubes"></i> Componenti del Gruppo
                         </div>
-                        
+
                         <div id="figliContainer">
                             <?php foreach ($componenti_predefiniti as $i => $comp): ?>
-                            <div class="figlio-item" data-index="<?php echo $i; ?>">
-                                <div class="figlio-header-row">
-                                    <span class="figlio-numero">Componente #<?php echo $i + 1; ?></span>
-                                    <button type="button" class="btn-remove-figlio" onclick="removeFiglio(<?php echo $i; ?>)">×</button>
+                                <div class="figlio-item" data-index="<?php echo $i; ?>">
+                                    <div class="figlio-header-row">
+                                        <span class="figlio-numero">Componente #<?php echo $i + 1; ?></span>
+                                        <button type="button" class="btn-remove-figlio" onclick="removeFiglio(<?php echo $i; ?>)">×</button>
+                                    </div>
+                                    <div class="figlio-grid">
+                                        <div class="form-group">
+                                            <label>Nome Prodotto *</label>
+                                            <input type="text" name="nome_<?php echo $i; ?>" value="<?php echo htmlspecialchars($comp); ?>" required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Quantità *</label>
+                                            <input type="number" name="quantita_<?php echo $i; ?>" min="0" value="0" required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Allarme *</label>
+                                            <input type="number" name="minimo_<?php echo $i; ?>" min="0" value="0" required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Fornitore</label>
+                                            <input type="text" name="fornitore_<?php echo $i; ?>">
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Descrizione</label>
+                                        <textarea name="descrizione_<?php echo $i; ?>"></textarea>
+                                    </div>
                                 </div>
-                                <div class="figlio-grid">
-                                    <div class="form-group">
-                                        <label>Nome Prodotto *</label>
-                                        <input type="text" name="nome_<?php echo $i; ?>" value="<?php echo htmlspecialchars($comp); ?>" required>
-                                    </div>
-                                    <div class="form-group">
-                                        <label>Quantità *</label>
-                                        <input type="number" name="quantita_<?php echo $i; ?>" min="0" value="0" required>
-                                    </div>
-                                    <div class="form-group">
-                                        <label>Allarme *</label>
-                                        <input type="number" name="minimo_<?php echo $i; ?>" min="0" value="0" required>
-                                    </div>
-                                    <div class="form-group">
-                                        <label>Fornitore</label>
-                                        <input type="text" name="fornitore_<?php echo $i; ?>">
-                                    </div>
-                                </div>
-                                <div class="form-group">
-                                    <label>Descrizione</label>
-                                    <textarea name="descrizione_<?php echo $i; ?>"></textarea>
-                                </div>
-                            </div>
                             <?php endforeach; ?>
                         </div>
-                        
+
                         <button type="button" class="btn-add-figlio" onclick="addFiglio()">
                             <i class="fas fa-plus"></i> Aggiungi Componente
                         </button>
                     </div>
-                    
+
                     <button type="submit" name="aggiungi_prodotto">
                         <i class="fas fa-save"></i> Salva Gruppo Completo
                     </button>
                 </form>
             </div>
         </div>
-        
+
         <!-- ELENCO PRODOTTI -->
         <div class="prodotti-section">
             <h2 style="font-size: 28px; margin-bottom: 25px; color: #1a1a1a; font-weight: 700;">
                 <i class="fas fa-box"></i> Elenco Gruppi Prodotti
             </h2>
-            
+
             <?php if (!empty($prodotti_per_padre)): ?>
                 <?php foreach ($prodotti_per_padre as $padre => $figli): ?>
                     <div class="padre-group">
@@ -1131,7 +1143,7 @@ menuItems.forEach(item => {
                                 </button>
                             </div>
                         </div>
-                        
+
                         <div class="figli-list">
                             <div class="prodotti-grid">
                                 <?php foreach ($figli as $prodotto): ?>
@@ -1170,7 +1182,7 @@ menuItems.forEach(item => {
             <?php endif; ?>
         </div>
     </div>
-    
+
     <!-- MODAL MODIFICA GRUPPO PADRE -->
     <div class="modal" id="modalEditPadre">
         <div class="modal-content">
@@ -1182,23 +1194,23 @@ menuItems.forEach(item => {
                 <div class="modal-body">
                     <input type="hidden" id="vecchio_padre" name="vecchio_padre">
                     <input type="hidden" name="componenti_ids[]" id="componentiIdsContainer">
-                    
+
                     <div class="form-group">
                         <label for="nuovo_padre"><i class="fas fa-folder"></i> Nome Gruppo *</label>
                         <input type="text" id="nuovo_padre" name="nuovo_padre" required>
                     </div>
-                    
+
                     <div style="margin-top: 30px;">
                         <h4 style="font-size: 18px; font-weight: 700; margin-bottom: 20px; color: #1a1a1a;">
                             <i class="fas fa-cubes"></i> Componenti
                         </h4>
                         <div id="componentiEditContainer"></div>
-                        
+
                         <button type="button" class="btn-add-figlio" onclick="addNuovoComponente()">
                             <i class="fas fa-plus"></i> Aggiungi Nuovo Componente
                         </button>
                     </div>
-                    
+
                     <div id="nuoviComponentiContainer"></div>
                 </div>
                 <div class="modal-footer">
@@ -1212,20 +1224,20 @@ menuItems.forEach(item => {
             </form>
         </div>
     </div>
-    
+
     <script>
         let figlioCounter = <?php echo count($componenti_predefiniti); ?>;
         let nuovoComponenteCounter = 0;
-        
+
         // GESTIONE ALERT
         function showAlert(tipo, messaggio) {
             const alert = document.getElementById('modernAlert');
             const icon = document.getElementById('alertIcon');
             const title = document.getElementById('alertTitle');
             const message = document.getElementById('alertMessage');
-            
+
             alert.className = 'modern-alert ' + tipo;
-            
+
             if (tipo === 'successo') {
                 icon.innerHTML = '<i class="fas fa-check-circle"></i>';
                 title.textContent = 'Operazione Completata!';
@@ -1233,32 +1245,32 @@ menuItems.forEach(item => {
                 icon.innerHTML = '<i class="fas fa-exclamation-circle"></i>';
                 title.textContent = 'Errore!';
             }
-            
+
             message.textContent = messaggio;
-            
+
             setTimeout(() => alert.classList.add('show'), 100);
             setTimeout(() => closeAlert(), 5000);
         }
-        
+
         function closeAlert() {
             document.getElementById('modernAlert').classList.remove('show');
         }
-        
+
         <?php if ($successo): ?>
             const successData = <?php echo $successo; ?>;
             showAlert(successData.tipo, successData.messaggio);
         <?php endif; ?>
-        
+
         <?php if ($errore): ?>
             const errorData = <?php echo $errore; ?>;
             showAlert(errorData.tipo, errorData.messaggio);
         <?php endif; ?>
-        
+
         // TOGGLE FORM SECTION
         function toggleFormSection() {
             const content = document.getElementById('formContent');
             const icon = document.getElementById('formToggleIcon');
-            
+
             if (content.classList.contains('expanded')) {
                 content.classList.remove('expanded');
                 icon.classList.add('collapsed');
@@ -1267,12 +1279,12 @@ menuItems.forEach(item => {
                 icon.classList.remove('collapsed');
             }
         }
-        
+
         // AGGIUNGI FIGLIO
         function addFiglio() {
             const container = document.getElementById('figliContainer');
             const newIndex = figlioCounter;
-            
+
             const newFiglio = document.createElement('div');
             newFiglio.className = 'figlio-item';
             newFiglio.setAttribute('data-index', newIndex);
@@ -1304,12 +1316,15 @@ menuItems.forEach(item => {
                     <textarea name="descrizione_${newIndex}"></textarea>
                 </div>
             `;
-            
+
             container.appendChild(newFiglio);
             figlioCounter++;
-            newFiglio.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            newFiglio.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center'
+            });
         }
-        
+
         // RIMUOVI FIGLIO
         function removeFiglio(index) {
             const figlio = document.querySelector(`.figlio-item[data-index="${index}"]`);
@@ -1318,32 +1333,32 @@ menuItems.forEach(item => {
                 setTimeout(() => figlio.remove(), 300);
             }
         }
-        
+
         // TOGGLE FIGLI LIST
         function toggleFigliList(header) {
             const padreGroup = header.closest('.padre-group');
             const figliList = padreGroup.querySelector('.figli-list');
-            
+
             if (figliList.classList.contains('expanded')) {
                 figliList.classList.remove('expanded');
             } else {
                 figliList.classList.add('expanded');
             }
         }
-        
+
         // MODAL MODIFICA PADRE
         function openEditPadreModal(padreName, figli) {
             document.getElementById('vecchio_padre').value = padreName;
             document.getElementById('nuovo_padre').value = padreName;
-            
+
             const container = document.getElementById('componentiEditContainer');
             const idsContainer = document.getElementById('componentiIdsContainer');
             container.innerHTML = '';
             idsContainer.innerHTML = '';
-            
+
             figli.forEach((prod, index) => {
                 if (prod.nome === prod.padre) return;
-                
+
                 const div = document.createElement('div');
                 div.className = 'figlio-item';
                 div.style.marginBottom = '20px';
@@ -1381,22 +1396,22 @@ menuItems.forEach(item => {
                 `;
                 container.appendChild(div);
             });
-            
+
             document.getElementById('nuoviComponentiContainer').innerHTML = '';
             nuovoComponenteCounter = 0;
-            
+
             document.getElementById('modalEditPadre').classList.add('active');
         }
-        
+
         function closeEditPadreModal() {
             document.getElementById('modalEditPadre').classList.remove('active');
         }
-        
+
         // AGGIUNGI NUOVO COMPONENTE IN MODALE
         function addNuovoComponente() {
             const container = document.getElementById('nuoviComponentiContainer');
             const index = nuovoComponenteCounter;
-            
+
             const div = document.createElement('div');
             div.className = 'figlio-item';
             div.style.marginTop = '20px';
@@ -1429,50 +1444,53 @@ menuItems.forEach(item => {
                     <textarea name="nuovo_descrizione_${index}"></textarea>
                 </div>
             `;
-            
+
             container.appendChild(div);
             nuovoComponenteCounter++;
-            div.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            div.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center'
+            });
         }
-        
+
         // CONFERMA ELIMINAZIONE PADRE
         function confirmDeletePadre(padreName, numComponenti) {
             if (confirm(`⚠️ ATTENZIONE!\n\nStai per eliminare il gruppo "${padreName}" e tutti i suoi ${numComponenti} componenti.\n\nQuesta azione è IRREVERSIBILE!\n\nVuoi continuare?`)) {
                 const form = document.createElement('form');
                 form.method = 'POST';
                 form.action = '';
-                
+
                 const padreInput = document.createElement('input');
                 padreInput.type = 'hidden';
                 padreInput.name = 'padre_nome';
                 padreInput.value = padreName;
                 form.appendChild(padreInput);
-                
+
                 const deleteInput = document.createElement('input');
                 deleteInput.type = 'hidden';
                 deleteInput.name = 'elimina_padre';
                 deleteInput.value = '1';
                 form.appendChild(deleteInput);
-                
+
                 document.body.appendChild(form);
                 form.submit();
             }
         }
-        
+
         // CHIUDI MODAL CON ESC
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 closeEditPadreModal();
             }
         });
-        
+
         // CHIUDI MODAL CLICCANDO FUORI
         document.getElementById('modalEditPadre').addEventListener('click', (e) => {
             if (e.target.id === 'modalEditPadre') {
                 closeEditPadreModal();
             }
         });
-        
+
         // ANIMAZIONE FADEOUT
         const style = document.createElement('style');
         style.textContent = `
@@ -1484,4 +1502,5 @@ menuItems.forEach(item => {
         document.head.appendChild(style);
     </script>
 </body>
+
 </html>

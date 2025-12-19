@@ -49,8 +49,6 @@ try {
         'prodotto' => $prodotto,
         'movimenti' => $movimenti
     ]);
-
 } catch (PDOException $e) {
     echo json_encode(['success' => false, 'error' => 'Errore durante il recupero dei dati']);
 }
-?>

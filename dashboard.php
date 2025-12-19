@@ -85,6 +85,7 @@ foreach ($prodotti_per_padre as $padre => $figli) {
 ?>
 <!DOCTYPE html>
 <html lang="it">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -96,13 +97,13 @@ foreach ($prodotti_per_padre as $padre => $figli) {
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: #f5f5f5;
             min-height: 100vh;
         }
-        
+
         /* Sidebar */
         .sidebar {
             position: fixed;
@@ -115,17 +116,17 @@ foreach ($prodotti_per_padre as $padre => $figli) {
             z-index: 1000;
             box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3);
         }
-        
+
         .sidebar.active {
             left: 0;
         }
-        
+
         .sidebar-header {
             padding: 30px 20px;
             border-bottom: 1px solid #333;
             text-align: center;
         }
-        
+
         .sidebar-logo {
             width: 80px;
             height: 80px;
@@ -140,17 +141,17 @@ foreach ($prodotti_per_padre as $padre => $figli) {
             color: #1a1a1a;
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
         }
-        
+
         .sidebar-title {
             color: white;
             font-size: 18px;
             font-weight: 600;
         }
-        
+
         .sidebar-menu {
             padding: 20px 0;
         }
-        
+
         .menu-item {
             padding: 15px 25px;
             color: white;
@@ -162,28 +163,28 @@ foreach ($prodotti_per_padre as $padre => $figli) {
             border-left: 3px solid transparent;
             text-decoration: none;
         }
-        
+
         .menu-item:hover {
             background: #2d2d2d;
             border-left-color: white;
             transform: translateX(5px);
         }
-        
+
         .menu-item.active {
             background: #2d2d2d;
             border-left-color: white;
         }
-        
+
         .menu-icon {
             font-size: 24px;
             width: 30px;
             text-align: center;
         }
-        
+
         .menu-text {
             font-size: 15px;
         }
-        
+
         /* Overlay */
         .overlay {
             position: fixed;
@@ -197,12 +198,12 @@ foreach ($prodotti_per_padre as $padre => $figli) {
             transition: opacity 0.3s ease, visibility 0.3s ease;
             z-index: 999;
         }
-        
+
         .overlay.active {
             opacity: 1;
             visibility: visible;
         }
-        
+
         /* Navbar */
         .navbar {
             position: fixed;
@@ -218,13 +219,13 @@ foreach ($prodotti_per_padre as $padre => $figli) {
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             z-index: 998;
         }
-        
+
         .navbar-left {
             display: flex;
             align-items: center;
             gap: 20px;
         }
-        
+
         .menu-toggle {
             background: none;
             border: none;
@@ -235,12 +236,12 @@ foreach ($prodotti_per_padre as $padre => $figli) {
             transition: all 0.3s;
             border-radius: 5px;
         }
-        
+
         .menu-toggle:hover {
             background: #2d2d2d;
             transform: scale(1.05);
         }
-        
+
         .navbar-logo {
             width: 45px;
             height: 45px;
@@ -254,17 +255,17 @@ foreach ($prodotti_per_padre as $padre => $figli) {
             color: #1a1a1a;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
         }
-        
+
         .navbar h1 {
             font-size: 24px;
         }
-        
+
         .user-info {
             display: flex;
             align-items: center;
             gap: 20px;
         }
-        
+
         .btn-logout {
             background: white;
             color: #1a1a1a;
@@ -277,18 +278,18 @@ foreach ($prodotti_per_padre as $padre => $figli) {
             text-decoration: none;
             display: inline-block;
         }
-        
+
         .btn-logout:hover {
             background: #f0f0f0;
             transform: translateY(-2px);
         }
-        
+
         .container {
             max-width: 1400px;
             margin: 100px auto 40px;
             padding: 0 20px;
         }
-        
+
         .page-header {
             background: white;
             padding: 30px;
@@ -297,24 +298,25 @@ foreach ($prodotti_per_padre as $padre => $figli) {
             margin-bottom: 30px;
             animation: fadeIn 0.5s;
         }
-        
+
         @keyframes fadeIn {
             from {
                 opacity: 0;
                 transform: translateY(20px);
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0);
             }
         }
-        
+
         .page-header h2 {
             color: #1a1a1a;
             font-size: 28px;
             margin-bottom: 10px;
         }
-        
+
         .page-header p {
             color: #666;
             font-size: 14px;
@@ -327,7 +329,7 @@ foreach ($prodotti_per_padre as $padre => $figli) {
             gap: 20px;
             margin-bottom: 30px;
         }
-        
+
         .stat-card {
             background: white;
             padding: 25px;
@@ -336,22 +338,22 @@ foreach ($prodotti_per_padre as $padre => $figli) {
             text-align: center;
             animation: fadeIn 0.7s;
         }
-        
+
         .stat-card h4 {
             font-size: 14px;
             color: #666;
             margin-bottom: 10px;
         }
-        
+
         .stat-card .number {
             font-size: 32px;
             font-weight: bold;
         }
-        
+
         .stat-critico {
             color: #ff6b6b;
         }
-        
+
         /* Alert Box */
         .alert-box {
             background: #fff3cd;
@@ -368,6 +370,7 @@ foreach ($prodotti_per_padre as $padre => $figli) {
                 opacity: 0;
                 transform: translateY(-20px);
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0);
@@ -438,6 +441,7 @@ foreach ($prodotti_per_padre as $padre => $figli) {
                 opacity: 0;
                 transform: translateY(30px);
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0);
@@ -624,6 +628,7 @@ foreach ($prodotti_per_padre as $padre => $figli) {
                 opacity: 0;
                 transform: scale(0.8);
             }
+
             to {
                 opacity: 1;
                 transform: scale(1);
@@ -802,23 +807,28 @@ foreach ($prodotti_per_padre as $padre => $figli) {
         }
 
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
         }
 
         @media (max-width: 768px) {
             .navbar h1 {
                 font-size: 18px;
             }
-            
+
             .user-info span {
                 display: none;
             }
-            
+
             .prodotti-grid {
                 grid-template-columns: 1fr;
             }
-            
+
             .prodotti-allarme {
                 grid-template-columns: 1fr;
             }
@@ -839,17 +849,18 @@ foreach ($prodotti_per_padre as $padre => $figli) {
         }
     </style>
 </head>
+
 <body>
     <!-- Overlay -->
     <div class="overlay" id="overlay"></div>
-    
+
     <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
             <div class="sidebar-logo">GP</div>
             <div class="sidebar-title">Gestione Prodotti</div>
         </div>
-        
+
         <div class="sidebar-menu">
             <a href="dashboard.php" class="menu-item active">
                 <span class="menu-icon">🏠</span>
@@ -873,7 +884,7 @@ foreach ($prodotti_per_padre as $padre => $figli) {
             </a>
         </div>
     </div>
-    
+
     <!-- Navbar -->
     <nav class="navbar">
         <div class="navbar-left">
@@ -886,7 +897,7 @@ foreach ($prodotti_per_padre as $padre => $figli) {
             <a href="./logout.php" class="btn-logout">Logout</a>
         </div>
     </nav>
-    
+
     <div class="container">
         <div class="page-header">
             <h2>Dashboard Magazzino</h2>
@@ -894,7 +905,7 @@ foreach ($prodotti_per_padre as $padre => $figli) {
         </div>
 
         <!-- Statistiche -->
-       <!-- <div class="stats">
+        <!-- <div class="stats">
             <div class="stat-card">
                 <h4>Prodotti Totali</h4>
                 <div class="number"><?php echo $totaleProdotti; ?></div>
@@ -958,7 +969,7 @@ foreach ($prodotti_per_padre as $padre => $figli) {
                             <div class="prodotti-grid">
                                 <?php foreach ($figli as $prod): ?>
                                     <div class="prodotto-card <?php echo ($prod['quantita'] < $prod['minimo']) ? 'allarme' : ''; ?>"
-                                         onclick="openMovimentiModal(<?php echo $prod['id']; ?>)">
+                                        onclick="openMovimentiModal(<?php echo $prod['id']; ?>)">
                                         <div class="prodotto-nome">
                                             <?php echo htmlspecialchars($prod['nome']); ?>
                                             <?php if ($prod['quantita'] < $prod['minimo']): ?>
@@ -969,152 +980,152 @@ foreach ($prodotti_per_padre as $padre => $figli) {
                                         <div class="info-row">
                                             <span class="info-label">Quantità:</span>
                                             <span class="info-value"><strong><?php echo $prod['quantita']; ?></strong> pz</span>
-                                            </div>
-
-                                    <div class="info-row">
-                                        <span class="info-label">Allarme:</span>
-                                        <span class="info-value"><?php echo $prod['minimo']; ?> pz</span>
-                                    </div>
-
-                                    <div class="info-row">
-                                        <span class="info-label">Fornitore:</span>
-                                        <span class="info-value"><?php echo htmlspecialchars($prod['fornitore']); ?></span>
-                                    </div>
-
-                                    <?php if (!empty($prod['descrizione'])): ?>
-                                        <div class="info-row">
-                                            <span class="info-label">Descrizione:</span>
-                                            <span class="info-value"><?php echo htmlspecialchars($prod['descrizione']); ?></span>
                                         </div>
-                                    <?php endif; ?>
-                                </div>
-                            <?php endforeach; ?>
+
+                                        <div class="info-row">
+                                            <span class="info-label">Allarme:</span>
+                                            <span class="info-value"><?php echo $prod['minimo']; ?> pz</span>
+                                        </div>
+
+                                        <div class="info-row">
+                                            <span class="info-label">Fornitore:</span>
+                                            <span class="info-value"><?php echo htmlspecialchars($prod['fornitore']); ?></span>
+                                        </div>
+
+                                        <?php if (!empty($prod['descrizione'])): ?>
+                                            <div class="info-row">
+                                                <span class="info-label">Descrizione:</span>
+                                                <span class="info-value"><?php echo htmlspecialchars($prod['descrizione']); ?></span>
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
                         </div>
                     </div>
+                <?php endforeach; ?>
+            <?php else: ?>
+                <div style="text-align: center; padding: 60px 20px;">
+                    <i class="fas fa-box-open" style="font-size: 80px; color: #ddd; margin-bottom: 20px;"></i>
+                    <h3 style="color: #1a1a1a; margin-bottom: 10px;">Nessun prodotto trovato</h3>
+                    <p style="color: #666;">Aggiungi prodotti dalla sezione "Modifica Prodotti"</p>
                 </div>
-            <?php endforeach; ?>
-        <?php else: ?>
-            <div style="text-align: center; padding: 60px 20px;">
-                <i class="fas fa-box-open" style="font-size: 80px; color: #ddd; margin-bottom: 20px;"></i>
-                <h3 style="color: #1a1a1a; margin-bottom: 10px;">Nessun prodotto trovato</h3>
-                <p style="color: #666;">Aggiungi prodotti dalla sezione "Modifica Prodotti"</p>
-            </div>
-        <?php endif; ?>
-    </div>
-</div>
-
-<!-- Modal Movimenti -->
-<div class="modal-movimenti" id="modalMovimenti">
-    <div class="modal-movimenti-content">
-        <div class="modal-movimenti-header">
-            <h3><i class="fas fa-history"></i> Ultimi Movimenti</h3>
-            <button class="modal-close" onclick="closeMovimentiModal()">×</button>
+            <?php endif; ?>
         </div>
-        <div class="modal-movimenti-body" id="modalMovimentiBody">
-            <div class="loading">
-                <i class="fas fa-spinner"></i>
-                <p>Caricamento movimenti...</p>
+    </div>
+
+    <!-- Modal Movimenti -->
+    <div class="modal-movimenti" id="modalMovimenti">
+        <div class="modal-movimenti-content">
+            <div class="modal-movimenti-header">
+                <h3><i class="fas fa-history"></i> Ultimi Movimenti</h3>
+                <button class="modal-close" onclick="closeMovimentiModal()">×</button>
+            </div>
+            <div class="modal-movimenti-body" id="modalMovimentiBody">
+                <div class="loading">
+                    <i class="fas fa-spinner"></i>
+                    <p>Caricamento movimenti...</p>
+                </div>
             </div>
         </div>
     </div>
-</div>
 
-<script>
-    // Toggle Sidebar
-    const menuToggle = document.getElementById('menuToggle');
-    const sidebar = document.getElementById('sidebar');
-    const overlay = document.getElementById('overlay');
-    
-    function toggleSidebar() {
-        const isActive = sidebar.classList.contains('active');
-        
-        if (isActive) {
-            sidebar.classList.remove('active');
-            overlay.classList.remove('active');
-            document.body.style.overflow = '';
-        } else {
-            sidebar.classList.add('active');
-            overlay.classList.add('active');
-            document.body.style.overflow = 'hidden';
-        }
-    }
-    
-    menuToggle.addEventListener('click', function(e) {
-        e.stopPropagation();
-        toggleSidebar();
-    });
-    
-    overlay.addEventListener('click', toggleSidebar);
-    
-    const menuItems = document.querySelectorAll('.menu-item');
-    menuItems.forEach(item => {
-        item.addEventListener('click', function() {
-            if (window.innerWidth <= 768) {
-                toggleSidebar();
+    <script>
+        // Toggle Sidebar
+        const menuToggle = document.getElementById('menuToggle');
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('overlay');
+
+        function toggleSidebar() {
+            const isActive = sidebar.classList.contains('active');
+
+            if (isActive) {
+                sidebar.classList.remove('active');
+                overlay.classList.remove('active');
+                document.body.style.overflow = '';
+            } else {
+                sidebar.classList.add('active');
+                overlay.classList.add('active');
+                document.body.style.overflow = 'hidden';
             }
-        });
-    });
-
-    // Toggle Padre Content
-    function togglePadreContent(header) {
-        const content = header.nextElementSibling;
-        const toggle = header.querySelector('.padre-toggle');
-
-        if (content.classList.contains('expanded')) {
-            content.classList.remove('expanded');
-            toggle.classList.remove('expanded');
-        } else {
-            content.classList.add('expanded');
-            toggle.classList.add('expanded');
         }
-    }
 
-    // Modal Movimenti
-    const modalMovimenti = document.getElementById('modalMovimenti');
-    const modalMovimentiBody = document.getElementById('modalMovimentiBody');
+        menuToggle.addEventListener('click', function(e) {
+            e.stopPropagation();
+            toggleSidebar();
+        });
 
-    function openMovimentiModal(prodottoId) {
-        modalMovimenti.classList.add('active');
-        document.body.style.overflow = 'hidden';
-        
-        // Reset del contenuto
-        modalMovimentiBody.innerHTML = `
+        overlay.addEventListener('click', toggleSidebar);
+
+        const menuItems = document.querySelectorAll('.menu-item');
+        menuItems.forEach(item => {
+            item.addEventListener('click', function() {
+                if (window.innerWidth <= 768) {
+                    toggleSidebar();
+                }
+            });
+        });
+
+        // Toggle Padre Content
+        function togglePadreContent(header) {
+            const content = header.nextElementSibling;
+            const toggle = header.querySelector('.padre-toggle');
+
+            if (content.classList.contains('expanded')) {
+                content.classList.remove('expanded');
+                toggle.classList.remove('expanded');
+            } else {
+                content.classList.add('expanded');
+                toggle.classList.add('expanded');
+            }
+        }
+
+        // Modal Movimenti
+        const modalMovimenti = document.getElementById('modalMovimenti');
+        const modalMovimentiBody = document.getElementById('modalMovimentiBody');
+
+        function openMovimentiModal(prodottoId) {
+            modalMovimenti.classList.add('active');
+            document.body.style.overflow = 'hidden';
+
+            // Reset del contenuto
+            modalMovimentiBody.innerHTML = `
             <div class="loading">
                 <i class="fas fa-spinner"></i>
                 <p>Caricamento movimenti...</p>
             </div>
         `;
 
-        // Carica i dati via AJAX
-        fetch('get_movimenti.php?id=' + prodottoId)
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    displayMovimenti(data.prodotto, data.movimenti);
-                } else {
-                    modalMovimentiBody.innerHTML = `
+            // Carica i dati via AJAX
+            fetch('get_movimenti.php?id=' + prodottoId)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        displayMovimenti(data.prodotto, data.movimenti);
+                    } else {
+                        modalMovimentiBody.innerHTML = `
                         <div class="no-movimenti">
                             <div class="no-movimenti-icon">❌</div>
                             <h3>Errore</h3>
                             <p>${data.error || 'Impossibile caricare i movimenti'}</p>
                         </div>
                     `;
-                }
-            })
-            .catch(error => {
-                console.error('Errore:', error);
-                modalMovimentiBody.innerHTML = `
+                    }
+                })
+                .catch(error => {
+                    console.error('Errore:', error);
+                    modalMovimentiBody.innerHTML = `
                     <div class="no-movimenti">
                         <div class="no-movimenti-icon">❌</div>
                         <h3>Errore di connessione</h3>
                         <p>Impossibile caricare i movimenti</p>
                     </div>
                 `;
-            });
-    }
+                });
+        }
 
-    function displayMovimenti(prodotto, movimenti) {
-        let html = `
+        function displayMovimenti(prodotto, movimenti) {
+            let html = `
             <div class="product-info-header">
                 <h4 style="color: #1a1a1a; margin-bottom: 15px; font-size: 18px;">
                     <i class="fas fa-box"></i> ${prodotto.nome}
@@ -1138,8 +1149,8 @@ foreach ($prodotti_per_padre as $padre => $figli) {
             </div>
         `;
 
-        if (movimenti.length > 0) {
-            html += `
+            if (movimenti.length > 0) {
+                html += `
                 <table class="movimenti-table">
                     <thead>
                         <tr>
@@ -1153,16 +1164,16 @@ foreach ($prodotti_per_padre as $padre => $figli) {
                     <tbody>
             `;
 
-            movimenti.forEach(mov => {
-                const isUscita = mov.movimento.toString().startsWith('-');
-                const movimentoNum = Math.abs(parseInt(mov.movimento));
-                const rowClass = isUscita ? 'row-uscita' : 'row-entrata';
-                const badgeClass = isUscita ? 'badge-uscita' : 'badge-entrata';
-                const tipo = isUscita ? 'USCITA' : 'ENTRATA';
-                const icon = isUscita ? '↓' : '↑';
-                const sign = isUscita ? '-' : '+';
+                movimenti.forEach(mov => {
+                    const isUscita = mov.movimento.toString().startsWith('-');
+                    const movimentoNum = Math.abs(parseInt(mov.movimento));
+                    const rowClass = isUscita ? 'row-uscita' : 'row-entrata';
+                    const badgeClass = isUscita ? 'badge-uscita' : 'badge-entrata';
+                    const tipo = isUscita ? 'USCITA' : 'ENTRATA';
+                    const icon = isUscita ? '↓' : '↑';
+                    const sign = isUscita ? '-' : '+';
 
-                html += `
+                    html += `
                     <tr class="${rowClass}">
                         <td>${mov.dataMovimento}</td>
                         <td>
@@ -1175,17 +1186,17 @@ foreach ($prodotti_per_padre as $padre => $figli) {
                         <td>${mov.descrizione || '-'}</td>
                     </tr>
                 `;
-            });
+                });
 
-            html += `
+                html += `
                     </tbody>
                 </table>
                 <a href="storicoEntrateUscite.php?prodotto_filtro=${encodeURIComponent(prodotto.nome)}" class="btn-vedi-altro">
                     <i class="fas fa-list"></i> Vedi tutti i movimenti
                 </a>
             `;
-        } else {
-            html += `
+            } else {
+                html += `
                 <div class="no-movimenti">
                     <div class="no-movimenti-icon">📭</div>
                     <h3>Nessun movimento registrato</h3>
@@ -1195,31 +1206,32 @@ foreach ($prodotti_per_padre as $padre => $figli) {
                     <i class="fas fa-plus"></i> Registra un movimento
                 </a>
             `;
+            }
+
+            modalMovimentiBody.innerHTML = html;
         }
 
-        modalMovimentiBody.innerHTML = html;
-    }
+        function closeMovimentiModal() {
+            modalMovimenti.classList.remove('active');
+            document.body.style.overflow = '';
+        }
 
-    function closeMovimentiModal() {
-        modalMovimenti.classList.remove('active');
-        document.body.style.overflow = '';
-    }
+        // Chiudi modal con ESC
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                if (modalMovimenti.classList.contains('active')) {
+                    closeMovimentiModal();
+                }
+            }
+        });
 
-    // Chiudi modal con ESC
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') {
-            if (modalMovimenti.classList.contains('active')) {
+        // Click fuori dal modal
+        modalMovimenti.addEventListener('click', function(e) {
+            if (e.target === modalMovimenti) {
                 closeMovimentiModal();
             }
-        }
-    });
-
-    // Click fuori dal modal
-    modalMovimenti.addEventListener('click', function(e) {
-        if (e.target === modalMovimenti) {
-            closeMovimentiModal();
-        }
-    });
-</script>
+        });
+    </script>
 </body>
+
 </html>

@@ -14,16 +14,16 @@ $successo = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
     $user = trim($_POST['username']);
     $pass = $_POST['password'];
-    
+
     if (!empty($user) && !empty($pass)) {
         try {
             $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $username, $password);
             $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-            
+
             $stmt = $pdo->prepare("SELECT id, username, password, privilegi FROM login WHERE username = ?");
             $stmt->execute([$user]);
             $utente = $stmt->fetch(PDO::FETCH_ASSOC);
-            
+
             if ($utente && password_verify($pass, $utente['password'])) {
                 $_SESSION['user_id'] = $utente['id'];
                 $_SESSION['username'] = $utente['username'];
@@ -43,6 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
 ?>
 <!DOCTYPE html>
 <html lang="it">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -53,7 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
@@ -63,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
             align-items: center;
             padding: 20px;
         }
-        
+
         .login-container {
             background: white;
             padding: 40px;
@@ -73,36 +74,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
             max-width: 400px;
             animation: slideIn 0.5s ease;
         }
-        
+
         @keyframes slideIn {
             from {
                 opacity: 0;
                 transform: translateY(-30px);
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0);
             }
         }
-        
+
         h2 {
             color: #1a1a1a;
             margin-bottom: 30px;
             text-align: center;
             font-size: 28px;
         }
-        
+
         .form-group {
             margin-bottom: 20px;
         }
-        
+
         label {
             display: block;
             margin-bottom: 8px;
             color: #1a1a1a;
             font-weight: 500;
         }
-        
+
         input[type="text"],
         input[type="password"] {
             width: 100%;
@@ -113,7 +115,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
             transition: all 0.3s;
             background: #f9f9f9;
         }
-        
+
         input[type="text"]:focus,
         input[type="password"]:focus {
             outline: none;
@@ -121,7 +123,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
             background: white;
             transform: translateY(-2px);
         }
-        
+
         button {
             width: 100%;
             padding: 14px;
@@ -135,17 +137,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
             transition: all 0.3s;
             margin-top: 10px;
         }
-        
+
         button:hover {
             background: #000;
             transform: translateY(-2px);
             box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
         }
-        
+
         button:active {
             transform: translateY(0);
         }
-        
+
         .messaggio {
             padding: 12px;
             border-radius: 5px;
@@ -153,72 +155,78 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
             text-align: center;
             animation: fadeIn 0.5s;
         }
-        
+
         @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
         }
-        
+
         .errore {
             background: #ffe6e6;
             color: #cc0000;
             border: 1px solid #ff9999;
         }
-        
+
         .successo {
             background: #e6ffe6;
             color: #006600;
             border: 1px solid #99ff99;
         }
-        
+
         .link-registrazione {
             text-align: center;
             margin-top: 20px;
             color: #666;
         }
-        
+
         .link-registrazione a {
             color: #1a1a1a;
             text-decoration: none;
             font-weight: 600;
             transition: all 0.3s;
         }
-        
+
         .link-registrazione a:hover {
             color: #000;
             text-decoration: underline;
         }
     </style>
 </head>
+
 <body>
     <div class="login-container">
         <h2>Login</h2>
-        
+
         <?php if ($errore): ?>
             <div class="messaggio errore"><?php echo htmlspecialchars($errore); ?></div>
         <?php endif; ?>
-        
+
         <?php if ($successo): ?>
             <div class="messaggio successo"><?php echo htmlspecialchars($successo); ?></div>
         <?php endif; ?>
-        
+
         <form method="POST" action="" id="loginForm">
             <div class="form-group">
                 <label for="username">Username</label>
                 <input type="text" id="username" name="username" required>
             </div>
-            
+
             <div class="form-group">
                 <label for="password">Password</label>
                 <input type="password" id="password" name="password" required>
             </div>
-            
+
             <button type="submit" name="login">Accedi</button>
         </form>
-        
-      
+
+
     </div>
-    
+
     <script>
         // Animazione input al focus
         const inputs = document.querySelectorAll('input');
@@ -230,12 +238,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                 this.parentElement.style.transform = 'translateX(0)';
             });
         });
-        
+
         // Validazione form
         document.getElementById('loginForm').addEventListener('submit', function(e) {
             const username = document.getElementById('username').value.trim();
             const password = document.getElementById('password').value;
-            
+
             if (username === '' || password === '') {
                 e.preventDefault();
                 alert('Compila tutti i campi!');
@@ -243,4 +251,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
         });
     </script>
 </body>
+
 </html>
