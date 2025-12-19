@@ -37,7 +37,10 @@ try {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registra_movimento'])) {
     $idProdotto = intval($_POST['prodotto']);
     $tipoMovimento = $_POST['tipo_movimento']; // 'entrata' o 'uscita'
-    $quantitaMovimento = intval($_POST['quantita_movimento']);
+    
+    // Converti in float e arrotonda a 1 decimale
+    $quantitaMovimento = round(floatval($_POST['quantita_movimento']), 1);
+    
     $descrizioneMovimento = trim($_POST['descrizione_movimento']);
     $numeroBolla = trim($_POST['numero_bolla']);
     $numeroDato = trim($_POST['numero_dato']);
@@ -1379,9 +1382,15 @@ foreach ($prodotti_per_padre as $padre => $figli) {
                     </div>
 
                     <div class="form-group">
-                        <label for="quick_quantita_movimento">Quantità *</label>
-                        <input type="number" id="quick_quantita_movimento" name="quantita_movimento" min="1" value="1" required>
-                    </div>
+    <label for="quick_quantita_movimento">Quantità *</label>
+    <input type="number" 
+           id="quick_quantita_movimento" 
+           name="quantita_movimento" 
+           min="0.1" 
+           step="0.1" 
+           value="1" 
+           required>
+</div>
 
                     <div class="form-group">
                         <label for="quick_numero_bolla">Numero Ista Taglio</label>
@@ -1556,18 +1565,19 @@ foreach ($prodotti_per_padre as $padre => $figli) {
             currentQuickType = null;
         }
 
-        function handleQuickSubmit() {
-            const quantita = parseInt(document.getElementById('quick_quantita_movimento').value);
+function handleQuickSubmit() {
+    // Converti in float e arrotonda a 1 decimale
+    const quantita = Math.round(parseFloat(document.getElementById('quick_quantita_movimento').value) * 10) / 10;
 
-            if (quantita <= 0) {
-                alert('Inserisci una quantità valida!');
-                return;
-            }
+    if (isNaN(quantita) || quantita <= 0) {
+        alert('Inserisci una quantità valida!');
+        return;
+    }
 
-            if (currentQuickType === 'uscita' && quantita > currentQuickProduct.quantita) {
-                alert('Quantità non disponibile! Disponibili: ' + currentQuickProduct.quantita + ' unità');
-                return;
-            }
+    if (currentQuickType === 'uscita' && quantita > currentQuickProduct.quantita) {
+        alert('Quantità non disponibile! Disponibili: ' + currentQuickProduct.quantita + ' unità');
+        return;
+    }
 
             const numeroBolla = document.getElementById('quick_numero_bolla').value;
             const numeroDato = document.getElementById('quick_numero_dato').value;
@@ -1613,17 +1623,18 @@ foreach ($prodotti_per_padre as $padre => $figli) {
                 parseInt(quantitaAttuale) - parseInt(quantita);
 
             // Crea i dettagli
-            let detailsHTML = `
-                <div class="confirm-detail-row">
-                    <span class="confirm-detail-label">Prodotto:</span>
-                    <span class="confirm-detail-value">${nomeProdotto}</span>
-                </div>
-                <div class="confirm-detail-row">
-                    <span class="confirm-detail-label">Quantità movimento:</span>
-                    <span class="confirm-detail-value ${tipoMovimento === 'entrata' ? 'highlight' : 'warning'}">
-                        ${tipoMovimento === 'entrata' ? '+' : '-'}${quantita} unità
-                    </span>
-                </div>
+           // Crea i dettagli
+let detailsHTML = `
+    <div class="confirm-detail-row">
+        <span class="confirm-detail-label">Prodotto:</span>
+        <span class="confirm-detail-value">${nomeProdotto}</span>
+    </div>
+    <div class="confirm-detail-row">
+        <span class="confirm-detail-label">Quantità movimento:</span>
+        <span class="confirm-detail-value ${tipoMovimento === 'entrata' ? 'highlight' : 'warning'}">
+            ${tipoMovimento === 'entrata' ? '+' : '-'}${parseFloat(quantita).toFixed(1)} unità
+        </span>
+    </div>
                 <div class="confirm-detail-row">
                     <span class="confirm-detail-label">Quantità attuale:</span>
                     <span class="confirm-detail-value">${quantitaAttuale} unità</span>
