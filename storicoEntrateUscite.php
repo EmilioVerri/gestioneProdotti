@@ -36,6 +36,9 @@ $prodottoFiltro = isset($_GET['prodotto_filtro']) ? $_GET['prodotto_filtro'] : '
 $dataInizio = isset($_GET['data_inizio']) ? $_GET['data_inizio'] : '';
 $dataFine = isset($_GET['data_fine']) ? $_GET['data_fine'] : '';
 $padreFiltro = isset($_GET['padre_filtro']) ? $_GET['padre_filtro'] : '';
+$bollaFiltro = isset($_GET['bolla_filtro']) ? $_GET['bolla_filtro'] : '';
+$datoFiltro = isset($_GET['dato_filtro']) ? $_GET['dato_filtro'] : '';
+$descrizioneFiltro = isset($_GET['descrizione_filtro']) ? $_GET['descrizione_filtro'] : '';
 $paginaCorrente = isset($_GET['pagina']) ? max(1, intval($_GET['pagina'])) : 1;
 $righePerPagina = 50;
 $offset = ($paginaCorrente - 1) * $righePerPagina;
@@ -74,6 +77,23 @@ if ($dataFine) {
 if ($padreFiltro) {
     $query .= " AND idPadre LIKE ?";
     $params[] = '%' . $padreFiltro . '%';
+}
+// Filtro per Numero Lista Taglio (bollaNumero)
+if ($bollaFiltro) {
+    $query .= " AND bollaNumero LIKE ?";
+    $params[] = '%' . $bollaFiltro . '%';
+}
+
+// Filtro per Numero Offerta (datoNumero)
+if ($datoFiltro) {
+    $query .= " AND datoNumero LIKE ?";
+    $params[] = '%' . $datoFiltro . '%';
+}
+
+// Filtro per Descrizione
+if ($descrizioneFiltro) {
+    $query .= " AND descrizione LIKE ?";
+    $params[] = '%' . $descrizioneFiltro . '%';
 }
 // Conta totale righe per paginazione
 $queryCount = str_replace("SELECT *", "SELECT COUNT(*) as total", $query);
@@ -127,7 +147,7 @@ try {
 
 // Funzione helper per costruire URL con parametri
 function buildUrlParams($pagina = null) {
-    global $tipoFiltro, $prodottoFiltro, $dataInizio, $dataFine, $padreFiltro; // Aggiungi $padreFiltro
+    global $tipoFiltro, $prodottoFiltro, $dataInizio, $dataFine, $padreFiltro, $bollaFiltro, $datoFiltro, $descrizioneFiltro;
     $params = [];
     
     if ($pagina !== null) {
@@ -147,6 +167,15 @@ function buildUrlParams($pagina = null) {
     }
     if ($padreFiltro) {
         $params[] = 'padre_filtro=' . urlencode($padreFiltro); // NUOVO
+    }
+    if ($bollaFiltro) {
+        $params[] = 'bolla_filtro=' . urlencode($bollaFiltro);
+    }
+    if ($datoFiltro) {
+        $params[] = 'dato_filtro=' . urlencode($datoFiltro);
+    }
+    if ($descrizioneFiltro) {
+        $params[] = 'descrizione_filtro=' . urlencode($descrizioneFiltro);
     }
     
     return !empty($params) ? '?' . implode('&', $params) : '';
@@ -898,6 +927,20 @@ function buildUrlParams($pagina = null) {
     <label for="padre_filtro">🔗 ID Padre</label>
     <input type="text" id="padre_filtro" name="padre_filtro" placeholder="Cerca per ID Padre..." value="<?php echo htmlspecialchars($padreFiltro); ?>">
 </div>
+<div class="filter-group">
+    <label for="bolla_filtro">📋 Numero Lista Taglio</label>
+    <input type="text" id="bolla_filtro" name="bolla_filtro" placeholder="Cerca Numero Lista Taglio..." value="<?php echo htmlspecialchars($bollaFiltro); ?>">
+</div>
+
+<div class="filter-group">
+    <label for="dato_filtro">📄 Numero Offerta</label>
+    <input type="text" id="dato_filtro" name="dato_filtro" placeholder="Cerca Numero Offerta..." value="<?php echo htmlspecialchars($datoFiltro); ?>">
+</div>
+
+<div class="filter-group">
+    <label for="descrizione_filtro">📝 Descrizione</label>
+    <input type="text" id="descrizione_filtro" name="descrizione_filtro" placeholder="Cerca nella Descrizione..." value="<?php echo htmlspecialchars($descrizioneFiltro); ?>">
+</div>
                 </div>
                 
                 <div class="filter-buttons">
@@ -919,7 +962,7 @@ function buildUrlParams($pagina = null) {
                     <table class="movimenti-table">
                         <thead>
                             <tr>
-                                <th>ID</th>
+                                <!--<th>ID</th>-->
                                 <th>Data e Ora</th>
                                 <th>Prodotto</th>
                                 <th>Movimento</th>
@@ -937,7 +980,7 @@ function buildUrlParams($pagina = null) {
                                 $movimentoValue = abs(intval($mov['movimento']));
                                 ?>
                                 <tr class="<?php echo $isUscita ? 'row-uscita' : 'row-entrata'; ?>">
-                                    <td><?php echo htmlspecialchars($mov['id']); ?></td>
+                                   <!-- <td><?php //echo htmlspecialchars($mov['id']); ?></td>-->
                                     <td><?php echo htmlspecialchars($mov['dataMovimento']); ?></td>
                                     <td class="prodotto-nome"><?php echo htmlspecialchars($mov['idProdotto']); ?></td>
                                     <td>
@@ -1112,6 +1155,20 @@ function buildUrlParams($pagina = null) {
 doc.text('ID Padre: <?php echo htmlspecialchars($padreFiltro); ?>', 14, yPos);
 yPos += 6;
 <?php endif; ?>
+<?php if ($bollaFiltro): ?>
+doc.text('Numero Lista Taglio: <?php echo htmlspecialchars($bollaFiltro); ?>', 14, yPos);
+yPos += 6;
+<?php endif; ?>
+
+<?php if ($datoFiltro): ?>
+doc.text('Numero Offerta: <?php echo htmlspecialchars($datoFiltro); ?>', 14, yPos);
+yPos += 6;
+<?php endif; ?>
+
+<?php if ($descrizioneFiltro): ?>
+doc.text('Descrizione: <?php echo htmlspecialchars($descrizioneFiltro); ?>', 14, yPos);
+yPos += 6;
+<?php endif; ?>
             
             doc.text('Data generazione: ' + new Date().toLocaleString('it-IT'), 14, yPos);
             doc.text('Totale movimenti: ' + movimentiData.length, 200, yPos);
@@ -1133,7 +1190,6 @@ yPos += 6;
                 }
                 
                 return [
-                    mov.id,
                     mov.dataMovimento,
                     mov.idProdotto,
                     tipo,
@@ -1141,13 +1197,14 @@ yPos += 6;
                     mov.idUtente,
                     mov.bollaNumero || '-',
                     mov.datoNumero || '-',
-                    (mov.descrizione || '-').substring(0, 25)
+                    (mov.descrizione || '-').substring(0, 25),
+                     mov.idPadre || '-'
                 ];
             });
             
             doc.autoTable({
                 startY: yPos,
-                head: [['ID', 'Data/Ora', 'Prodotto', 'Tipo', 'Qta', 'Utente', 'Numero Lista Taglio', 'Numero Offerta', 'Descrizione','Padre']],
+               head: [['Data/Ora', 'Prodotto', 'Tipo', 'Qta', 'Utente', 'N. Lista', 'N. Offerta', 'Descrizione', 'Padre']],
                 body: tableData,
                 styles: {
                     fontSize: 7,
@@ -1163,48 +1220,41 @@ yPos += 6;
                     fillColor: [245, 245, 245]
                 },
                 columnStyles: {
-                    0: { cellWidth: 15, halign: 'center' },
-                    1: { cellWidth: 35 },
-                    2: { cellWidth: 40 },
-                    3: { cellWidth: 25, halign: 'center' },
-                    4: { cellWidth: 20, halign: 'right' },
-                    5: { cellWidth: 30 },
-                    6: { cellWidth: 20 },
-                    7: { cellWidth: 45 }
-                },
+    0: { cellWidth: 28, halign: 'center', fontSize: 7 },      // Data/Ora
+    1: { cellWidth: 30, fontSize: 7 },                         // Prodotto
+    2: { cellWidth: 20, halign: 'center', fontSize: 7 },      // Tipo
+    3: { cellWidth: 15, halign: 'center', fontSize: 8 },      // Qta
+    4: { cellWidth: 22, fontSize: 7 },                         // Utente
+    5: { cellWidth: 22, halign: 'center', fontSize: 7 },      // N. Lista
+    6: { cellWidth: 22, halign: 'center', fontSize: 7 },      // N. Offerta
+    7: { cellWidth: 50, fontSize: 6 },                         // Descrizione
+    8: { cellWidth: 18, halign: 'center', fontSize: 7 }       // ID Padre
+},
                 didParseCell: function(data) {
-                    if (data.section === 'body') {
-                        if (data.column.index === 3) {
-                            if (data.cell.raw === 'ENTRATA') {
-                                data.row.cells[0].styles.fillColor = [232, 245, 233];
-                                data.row.cells[1].styles.fillColor = [232, 245, 233];
-                                data.row.cells[2].styles.fillColor = [232, 245, 233];
-                                data.row.cells[3].styles.fillColor = [76, 175, 80];
-                                data.row.cells[3].styles.textColor = [255, 255, 255];
-                                data.row.cells[3].styles.fontStyle = 'bold';
-                                data.row.cells[4].styles.fillColor = [232, 245, 233];
-                                data.row.cells[4].styles.textColor = [76, 175, 80];
-                                data.row.cells[4].styles.fontStyle = 'bold';
-                                data.row.cells[5].styles.fillColor = [232, 245, 233];
-                                data.row.cells[6].styles.fillColor = [232, 245, 233];
-                                data.row.cells[7].styles.fillColor = [232, 245, 233];
-                            } else if (data.cell.raw === 'USCITA') {
-                                data.row.cells[0].styles.fillColor = [255, 235, 238];
-                                data.row.cells[1].styles.fillColor = [255, 235, 238];
-                                data.row.cells[2].styles.fillColor = [255, 235, 238];
-                                data.row.cells[3].styles.fillColor = [255, 107, 107];
-                                data.row.cells[3].styles.textColor = [255, 255, 255];
-                                data.row.cells[3].styles.fontStyle = 'bold';
-                                data.row.cells[4].styles.fillColor = [255, 235, 238];
-                                data.row.cells[4].styles.textColor = [255, 107, 107];
-                                data.row.cells[4].styles.fontStyle = 'bold';
-                                data.row.cells[5].styles.fillColor = [255, 235, 238];
-                                data.row.cells[6].styles.fillColor = [255, 235, 238];
-                                data.row.cells[7].styles.fillColor = [255, 235, 238];
-                            }
-                        }
-                    }
-                },
+    if (data.section === 'body') {
+        if (data.column.index === 2) { // Colonna "Tipo"
+            const isEntrata = data.cell.raw === 'ENTRATA';
+            const fillColor = isEntrata ? [232, 245, 233] : [255, 235, 238];
+            const badgeColor = isEntrata ? [76, 175, 80] : [255, 107, 107];
+            const textColor = isEntrata ? [76, 175, 80] : [255, 107, 107];
+            
+            // Applica colore a tutte le celle della riga
+            for (let i = 0; i < 9; i++) {
+                if (i === 2) { // Badge Tipo
+                    data.row.cells[i].styles.fillColor = badgeColor;
+                    data.row.cells[i].styles.textColor = [255, 255, 255];
+                    data.row.cells[i].styles.fontStyle = 'bold';
+                } else if (i === 3) { // Quantità
+                    data.row.cells[i].styles.fillColor = fillColor;
+                    data.row.cells[i].styles.textColor = textColor;
+                    data.row.cells[i].styles.fontStyle = 'bold';
+                } else {
+                    data.row.cells[i].styles.fillColor = fillColor;
+                }
+            }
+        }
+    }
+},
                 margin: { top: yPos, left: 14, right: 14 }
             });
             
